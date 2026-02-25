@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>XML Editor</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg:       #0d0f0e;
+    --surface:  #131614;
+    --surface2: #1a1d1b;
+    --surface3: #222522;
+    --border:   #2a2e2b;
+    --accent:   #a8e063;
+    --accent2:  #f5c842;
+    --red:      #ff6b6b;
+    --blue:     #64b5f6;
+    --muted:    #4a5248;
+    --text:     #cdd8c4;
+    --text-dim: #6b7a68;
+    --mono:     'JetBrains Mono', monospace;
+    --sans:     'Syne', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    height: 52px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .logo {
+    font-family: var(--sans);
+    font-weight: 800;
+    font-size: 17px;
+    letter-spacing: -0.5px;
+    color: var(--accent);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .logo span { color: var(--text-dim); font-weight: 400; font-size: 12px; font-family: var(--mono); }
+  .header-actions { display: flex; gap: 8px; align-items: center; }
+
+  button {
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 6px 14px;
+    border-radius: 4px;
+    transition: all 0.15s;
+    display: flex; align-items: center; gap: 6px;
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button.primary { background: var(--accent); color: #0d0f0e; border-color: var(--accent); font-weight: 700; }
+  button.primary:hover { background: #c0f07a; border-color: #c0f07a; color: #0d0f0e; }
+
+  .statusbar {
+    display: flex; align-items: center; gap: 14px;
+    padding: 0 20px; height: 30px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px; color: var(--text-dim);
+    flex-shrink: 0;
+  }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+  .dot.ok  { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+  .dot.err { background: var(--red);   box-shadow: 0 0 6px var(--red); }
+  .statusbar .ok  { color: var(--accent); }
+  .statusbar .err { color: var(--red); }
+  .sep { color: var(--border); }
+  .modified { color: var(--accent2) !important; }
+
+  .toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 16px; height: 38px;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0; gap: 8px;
+  }
+  .toolbar-left  { display: flex; gap: 6px; align-items: center; }
+  .toolbar-right { display: flex; gap: 6px; align-items: center; }
+  .toolbar button { height: 24px; padding: 0 10px; font-size: 11px; }
+  .badge {
+    background: var(--surface3); border: 1px solid var(--border);
+    border-radius: 10px; padding: 1px 9px;
+    font-size: 10px; color: var(--text-dim);
+  }
+
+  .tree-area {
+    flex: 1; overflow-y: auto; overflow-x: auto;
+    padding: 14px 20px 60px;
+  }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--surface); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+  .tree-node { margin: 0; }
+
+  .node-row {
+    display: flex; align-items: flex-start;
+    padding: 3px 6px; border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.1s;
+    position: relative;
+  }
+  .node-row:hover { background: rgba(255,255,255,0.03); }
+  .node-row.selected { background: rgba(168,224,99,0.08); outline: 1px solid rgba(168,224,99,0.25); }
+  .node-row:hover > .node-actions { opacity: 1; }
+
+  .toggle-btn {
+    background: none; border: none; color: var(--muted);
+    font-size: 10px; width: 18px; height: 20px;
+    padding: 0; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; border-radius: 3px; transition: color 0.1s;
+  }
+  .toggle-btn:hover { color: var(--accent); }
+
+  .node-content { flex: 1; min-width: 0; line-height: 1.9; word-break: break-all; }
+
+  .tag-name  { color: var(--accent); font-weight: 500; }
+  .attr-name { color: var(--accent2); }
+  .attr-val  { color: var(--blue); }
+  .punct     { color: var(--muted); }
+  .text-val  { color: var(--text); }
+
+  .node-children {
+    padding-left: 22px;
+    border-left: 1px solid var(--border);
+    margin-left: 9px;
+  }
+
+  .editable {
+    display: inline; background: none; border: none; outline: none;
+    font-family: var(--mono); font-size: 13px; color: inherit;
+    padding: 0; cursor: text;
+    border-bottom: 1px dashed transparent;
+    transition: border-color 0.15s; min-width: 4px;
+  }
+  .editable:hover { border-bottom-color: var(--muted); }
+  .editable:focus { border-bottom-color: var(--accent); color: #fff; background: rgba(168,224,99,0.08); border-radius: 2px 2px 0 0; }
+
+  .node-actions {
+    opacity: 0; display: flex; gap: 2px;
+    transition: opacity 0.15s; margin-left: 8px; flex-shrink: 0;
+  }
+  .node-actions button { padding: 1px 7px; font-size: 10px; height: 18px; }
+  .act-add  { color: var(--accent)  !important; }
+  .act-attr { color: var(--accent2) !important; }
+  .act-del  { color: var(--red)     !important; }
+
+  .empty-state {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; height: 100%;
+    color: var(--text-dim); gap: 12px;
+  }
+  .empty-state .icon { font-size: 40px; }
+  .empty-state p { font-size: 12px; }
+
+  .error-box {
+    margin: 16px; padding: 12px 16px;
+    background: rgba(255,107,107,0.08);
+    border: 1px solid rgba(255,107,107,0.3);
+    border-radius: 6px; color: var(--red);
+    font-size: 12px; line-height: 1.6;
+  }
+
+  /* DEPTH TOOLTIP */
+  #depthTooltip {
+    position: fixed;
+    background: var(--surface3);
+    border: 1px solid rgba(168,224,99,0.25);
+    border-radius: 7px;
+    padding: 10px 14px;
+    font-size: 11px; color: var(--text);
+    pointer-events: none; z-index: 200;
+    display: none;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+    white-space: nowrap;
+    min-width: 180px;
+  }
+  #depthTooltip .tt-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  #depthTooltip .tt-depth { font-family: var(--sans); font-weight: 800; font-size: 22px; color: var(--accent); line-height: 1; }
+  #depthTooltip .tt-label { color: var(--text-dim); font-size: 10px; }
+  #depthTooltip .tt-tag { color: var(--accent2); font-size: 13px; font-weight: 600; }
+  #depthTooltip .tt-path { color: var(--text-dim); font-size: 10px; margin-top: 5px; border-top: 1px solid var(--border); padding-top: 5px; }
+  #depthTooltip .tt-meta { color: var(--blue); font-size: 10px; margin-top: 2px; }
+
+  /* MODALS */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.65); z-index: 100;
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 24px; min-width: 340px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    animation: slideIn 0.15s ease;
+  }
+  @keyframes slideIn { from { transform: translateY(-8px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .modal h3 { font-family: var(--sans); font-size: 15px; color: var(--accent); margin-bottom: 16px; }
+  .modal label { display: block; font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .modal input {
+    width: 100%; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 4px; color: var(--text); font-family: var(--mono);
+    font-size: 13px; padding: 8px 10px; outline: none; margin-bottom: 12px;
+    transition: border-color 0.15s;
+  }
+  .modal input:focus { border-color: var(--accent); }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+
+  /* PASTE OVERLAY */
+  #pasteOverlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7); z-index: 100;
+    align-items: center; justify-content: center;
+  }
+  #pasteOverlay.open { display: flex; }
+  .paste-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 24px; width: 600px; max-width: 92vw;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    animation: slideIn 0.15s ease;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .paste-box h3 { font-family: var(--sans); font-size: 15px; color: var(--accent); }
+  .paste-box textarea {
+    width: 100%; height: 260px; resize: vertical;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text); font-family: var(--mono);
+    font-size: 12px; line-height: 1.6; padding: 10px 12px;
+    outline: none; caret-color: var(--accent); transition: border-color 0.15s;
+  }
+  .paste-box textarea:focus { border-color: var(--accent); }
+  .paste-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+  @keyframes fadeIn { from { opacity:0; transform: translateX(4px); } to { opacity:1; transform:none; } }
+  .tree-node { animation: fadeIn 0.1s ease; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">⬡ XMLEDIT <span>// structure editor</span></div>
+  <div class="header-actions">
+    <button onclick="loadSample()">⊞ Sample</button>
+    <button onclick="document.getElementById('fileInput').click()">↑ Open File</button>
+    <input id="fileInput" type="file" accept=".xml,.txt" style="display:none" onchange="openFile(event)"/>
+    <button onclick="openPaste()">✎ Paste XML</button>
+    <button class="primary" onclick="saveFile()">↓ Save XML</button>
+  </div>
+</header>
+
+<div class="statusbar">
+  <div class="dot" id="statusDot"></div>
+  <span id="statusText">No file loaded</span>
+  <span class="sep">|</span>
+  <span id="nodeCount" style="color:var(--accent2)">—</span>
+  <span class="sep">|</span>
+  <span id="selectedInfo" style="color:var(--text-dim)">click any node to see depth &amp; info</span>
+  <span style="flex:1"></span>
+  <span id="modifiedStatus"></span>
+</div>
+
+<div class="toolbar">
+  <div class="toolbar-left">
+    <button onclick="expandAll()">⊞ Expand All</button>
+    <button onclick="collapseAll()">⊟ Collapse All</button>
+  </div>
+  <div class="toolbar-right">
+    <span class="badge" id="maxDepthBadge">max depth: —</span>
+  </div>
+</div>
+
+<div class="tree-area" id="treeContainer">
+  <div class="empty-state">
+    <div class="icon">⬡</div>
+    <p>Open a file, paste XML, or load the sample to get started</p>
+  </div>
+</div>
+
+<!-- Depth tooltip -->
+<div id="depthTooltip"></div>
+
+<!-- Paste overlay -->
+<div id="pasteOverlay">
+  <div class="paste-box">
+    <h3>Paste XML</h3>
+    <textarea id="pasteInput" spellcheck="false" placeholder="<?xml version=&quot;1.0&quot;?>&#10;<root>&#10;  ...&#10;</root>"></textarea>
+    <div class="paste-actions">
+      <button onclick="closePaste()">Cancel</button>
+      <button class="primary" onclick="parseFromPaste()">Parse ↻  (Ctrl+Enter)</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Node Modal -->
+<div class="modal-overlay" id="addNodeModal">
+  <div class="modal">
+    <h3>Add Child Element</h3>
+    <label>Tag Name</label>
+    <input id="newTagName" placeholder="element"/>
+    <label>Text Content (optional)</label>
+    <input id="newTagText" placeholder="value"/>
+    <div class="modal-actions">
+      <button onclick="closeModal('addNodeModal')">Cancel</button>
+      <button class="primary" onclick="confirmAddNode()">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Attr Modal -->
+<div class="modal-overlay" id="addAttrModal">
+  <div class="modal">
+    <h3>Add Attribute</h3>
+    <label>Name</label>
+    <input id="newAttrName" placeholder="id"/>
+    <label>Value</label>
+    <input id="newAttrVal" placeholder="value"/>
+    <div class="modal-actions">
+      <button onclick="closeModal('addAttrModal')">Cancel</button>
+      <button class="primary" onclick="confirmAddAttr()">Add</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let xmlDoc = null;
+let modified = false;
+let _addNodeTarget = null;
+let _addAttrTarget = null;
+let _collapsed = new Set();
+let _selectedRow = null;
+let _tooltipTimer = null;
+
+// ── PARSE ──────────────────────────────────────────────────────
+function tryParse(xml) {
+  const doc = new DOMParser().parseFromString(xml, 'application/xml');
+  const err = doc.querySelector('parsererror');
+  if (err) {
+    setStatus('err', 'Parse error');
+    document.getElementById('treeContainer').innerHTML =
+      `<div class="error-box">⚠ Parse Error<br/><br/>${escHtml(err.textContent)}</div>`;
+    return false;
+  }
+  xmlDoc = doc; modified = false; _collapsed.clear();
+  renderTree(); setStatus('ok', 'Parsed successfully');
+  return true;
+}
+
+// ── RENDER ─────────────────────────────────────────────────────
+function renderTree() {
+  if (!xmlDoc) return;
+  const c = document.getElementById('treeContainer');
+  c.innerHTML = '';
+  let nodeCount = 0, maxDepth = 0;
+  (function count(el, d) {
+    if (el.nodeType !== 1) return;
+    nodeCount++; maxDepth = Math.max(maxDepth, d);
+    for (const ch of el.childNodes) count(ch, d + 1);
+  })(xmlDoc.documentElement, 0);
+  document.getElementById('nodeCount').textContent = `${nodeCount} nodes`;
+  document.getElementById('maxDepthBadge').textContent = `max depth: ${maxDepth}`;
+  c.appendChild(renderNode(xmlDoc.documentElement, 0));
+}
+
+function renderNode(el, depth) {
+  if (el.nodeType !== 1) return document.createDocumentFragment();
+
+  const hasChildren = el.children.length > 0;
+  const textVal     = getDirectText(el);
+  const collapsed   = _collapsed.has(el);
+
+  const wrap = document.createElement('div');
+  wrap.className = 'tree-node';
+
+  const row = document.createElement('div');
+  row.className = 'node-row';
+  row.dataset.depth = depth;
+  row.dataset.tag   = el.tagName;
+
+  row.addEventListener('click', e => {
+    if (e.target.classList.contains('editable') || e.target.classList.contains('toggle-btn')) return;
+    selectNode(row, el, depth, e);
+  });
+
+  // Toggle
+  const tog = document.createElement('button');
+  tog.className = 'toggle-btn';
+  tog.textContent = hasChildren ? (collapsed ? '▶' : '▼') : '·';
+  if (hasChildren) tog.onclick = e => { e.stopPropagation(); toggleCollapse(el, wrap, tog); };
+  row.appendChild(tog);
+
+  // Content
+  const content = document.createElement('span');
+  content.className = 'node-content';
+  content.appendChild(mkspan('<', 'punct'));
+  content.appendChild(mkspan(el.tagName, 'tag-name'));
+
+  // Attributes
+  for (const attr of [...el.attributes]) {
+    const chip = document.createElement('span');
+    chip.style.marginLeft = '4px';
+
+    const nameEl = makeEditable(attr.name, 'attr-name', val => {
+      const v = val.trim();
+      if (v && v !== attr.name) { const old = attr.value; el.removeAttribute(attr.name); el.setAttribute(v, old); markModified(); renderTree(); }
+    });
+    const valEl = makeEditable(attr.value, 'attr-val', val => { attr.value = val; markModified(); });
+    const delX  = document.createElement('span');
+    delX.textContent = '×'; delX.title = 'Remove attribute';
+    delX.style.cssText = 'color:var(--red);cursor:pointer;font-size:10px;margin-left:2px;opacity:0.45;vertical-align:middle;';
+    delX.onmouseover = () => delX.style.opacity='1'; delX.onmouseout = () => delX.style.opacity='0.45';
+    delX.onclick = e => { e.stopPropagation(); el.removeAttribute(attr.name); markModified(); renderTree(); };
+
+    chip.append(' ', nameEl, mkspan('=','punct'), mkspan('"','punct'), valEl, mkspan('"','punct'), delX);
+    content.appendChild(chip);
+  }
+
+  if (!hasChildren && textVal === '') {
+    content.appendChild(mkspan('/>', 'punct'));
+  } else if (!hasChildren) {
+    content.appendChild(mkspan('>', 'punct'));
+    content.appendChild(makeEditable(textVal, 'text-val', val => { setDirectText(el, val); markModified(); }));
+    content.appendChild(mkspan('</', 'punct'));
+    content.appendChild(mkspan(el.tagName, 'tag-name'));
+    content.appendChild(mkspan('>', 'punct'));
+  } else {
+    content.appendChild(mkspan('>', 'punct'));
+  }
+
+  row.appendChild(content);
+
+  // Hover actions
+  const acts = document.createElement('div');
+  acts.className = 'node-actions';
+  const bAdd  = btn('+ elem', 'act-add',  e => { e.stopPropagation(); openAddNodeModal(el); });
+  const bAttr = btn('+ attr', 'act-attr', e => { e.stopPropagation(); openAddAttrModal(el); });
+  const bDel  = btn('✕',      'act-del',  e => {
+    e.stopPropagation();
+    if (el === xmlDoc.documentElement) { alert('Cannot delete root element.'); return; }
+    if (confirm(`Delete <${el.tagName}>?`)) { el.parentNode.removeChild(el); markModified(); renderTree(); }
+  });
+  acts.append(bAdd, bAttr, bDel);
+  row.appendChild(acts);
+  wrap.appendChild(row);
+
+  if (hasChildren) {
+    const cw = document.createElement('div');
+    cw.className = 'node-children';
+    if (collapsed) cw.style.display = 'none';
+    for (const ch of el.children) cw.appendChild(renderNode(ch, depth + 1));
+    const ct = document.createElement('div');
+    ct.style.cssText = 'padding:2px 6px;color:var(--muted);';
+    ct.append(mkspan('</', 'punct'), mkspan(el.tagName, 'tag-name'), mkspan('>', 'punct'));
+    cw.appendChild(ct);
+    wrap.appendChild(cw);
+  }
+
+  return wrap;
+}
+
+// ── SELECT / DEPTH ─────────────────────────────────────────────
+function selectNode(row, el, depth, mouseEvent) {
+  if (_selectedRow) _selectedRow.classList.remove('selected');
+  row.classList.add('selected');
+  _selectedRow = row;
+
+  // Build ancestor path
+  const path = []; let cur = el;
+  while (cur && cur.nodeType === 1) { path.unshift(cur.tagName); cur = cur.parentNode; }
+
+  const childCount = el.children.length;
+  const attrCount  = el.attributes.length;
+  const tv         = getDirectText(el);
+
+  // Status bar
+  document.getElementById('selectedInfo').innerHTML =
+    `<span style="color:var(--accent);font-weight:700">depth ${depth}</span>` +
+    ` <span style="color:var(--border)">|</span> ` +
+    `<span style="color:var(--accent2)">&lt;${escHtml(el.tagName)}&gt;</span>` +
+    (attrCount  ? ` <span style="color:var(--text-dim)">· ${attrCount} attr${attrCount>1?'s':''}</span>` : '') +
+    (childCount ? ` <span style="color:var(--text-dim)">· ${childCount} child${childCount>1?'ren':''}</span>` : '') +
+    (tv         ? ` <span style="color:var(--text-dim)">· "${escHtml(tv.slice(0,28))}${tv.length>28?'…':''}"</span>` : '');
+
+  // Tooltip
+  const tt = document.getElementById('depthTooltip');
+  tt.innerHTML =
+    `<div class="tt-row"><span class="tt-depth">${depth}</span><div><div class="tt-label">depth</div><div class="tt-tag">&lt;${escHtml(el.tagName)}&gt;</div></div></div>` +
+    (attrCount  ? `<div class="tt-meta">${attrCount} attribute${attrCount>1?'s':''}</div>` : '') +
+    (childCount ? `<div class="tt-meta">${childCount} child element${childCount>1?'s':''}</div>` : '') +
+    (tv         ? `<div class="tt-meta" style="color:var(--text)">"${escHtml(tv.slice(0,30))}${tv.length>30?'…':''}"</div>` : '') +
+    `<div class="tt-path">${escHtml(path.join(' › '))}</div>`;
+
+  const rect = row.getBoundingClientRect();
+  tt.style.display = 'block';
+  tt.style.top  = (rect.bottom + 6) + 'px';
+  const left = Math.min(rect.left + 20, window.innerWidth - 230);
+  tt.style.left = left + 'px';
+
+  clearTimeout(_tooltipTimer);
+  _tooltipTimer = setTimeout(() => { tt.style.display = 'none'; }, 4000);
+}
+
+// Hide on outside click
+document.addEventListener('click', e => {
+  if (!e.target.closest('.node-row')) {
+    document.getElementById('depthTooltip').style.display = 'none';
+    if (_selectedRow) { _selectedRow.classList.remove('selected'); _selectedRow = null; }
+    document.getElementById('selectedInfo').textContent = 'click any node to see depth & info';
+  }
+});
+
+// ── COLLAPSE ───────────────────────────────────────────────────
+function toggleCollapse(el, wrap, tog) {
+  const cw = wrap.querySelector('.node-children'); if (!cw) return;
+  const isCol = cw.style.display === 'none';
+  cw.style.display = isCol ? '' : 'none';
+  tog.textContent  = isCol ? '▼' : '▶';
+  isCol ? _collapsed.delete(el) : _collapsed.add(el);
+}
+function expandAll()   { _collapsed.clear(); renderTree(); }
+function collapseAll() {
+  (function add(el) { _collapsed.add(el); for (const c of el.children) add(c); })(xmlDoc?.documentElement);
+  if (xmlDoc) renderTree();
+}
+
+// ── HELPERS ────────────────────────────────────────────────────
+function mkspan(text, cls) { const s = document.createElement('span'); s.className = cls; s.textContent = text; return s; }
+
+function btn(label, cls, onclick) {
+  const b = document.createElement('button');
+  b.className = cls; b.textContent = label; b.onclick = onclick; return b;
+}
+
+function makeEditable(value, cls, onCommit) {
+  const el = document.createElement('span');
+  el.className = `editable ${cls}`;
+  el.contentEditable = 'true';
+  el.textContent = value;
+  el.spellcheck = false;
+  el.addEventListener('blur',    () => onCommit(el.textContent));
+  el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); el.blur(); } e.stopPropagation(); });
+  el.addEventListener('click',   e => e.stopPropagation());
+  return el;
+}
+
+function getDirectText(el) { return el.children.length > 0 ? null : el.textContent; }
+function setDirectText(el, val) {
+  for (const n of [...el.childNodes]) if (n.nodeType === 3) n.remove();
+  el.appendChild(xmlDoc.createTextNode(val));
+}
+
+// ── STATUS ─────────────────────────────────────────────────────
+function setStatus(type, msg) {
+  document.getElementById('statusDot').className   = 'dot ' + type;
+  document.getElementById('statusText').textContent = msg;
+  document.getElementById('statusText').className   = type;
+}
+function markModified() {
+  modified = true;
+  document.getElementById('modifiedStatus').textContent = '● unsaved changes';
+  document.getElementById('modifiedStatus').className   = 'modified';
+}
+
+// ── PASTE ──────────────────────────────────────────────────────
+function openPaste()  { document.getElementById('pasteOverlay').classList.add('open'); setTimeout(() => document.getElementById('pasteInput').focus(), 50); }
+function closePaste() { document.getElementById('pasteOverlay').classList.remove('open'); }
+function parseFromPaste() { const xml = document.getElementById('pasteInput').value.trim(); if (xml && tryParse(xml)) closePaste(); }
+document.getElementById('pasteOverlay').addEventListener('click', e => { if (e.target === document.getElementById('pasteOverlay')) closePaste(); });
+document.getElementById('pasteInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); parseFromPaste(); }
+  if (e.key === 'Escape') closePaste();
+});
+
+// ── MODALS ─────────────────────────────────────────────────────
+function openAddNodeModal(el) { _addNodeTarget = el; document.getElementById('newTagName').value = ''; document.getElementById('newTagText').value = ''; document.getElementById('addNodeModal').classList.add('open'); setTimeout(() => document.getElementById('newTagName').focus(), 50); }
+function openAddAttrModal(el) { _addAttrTarget = el; document.getElementById('newAttrName').value = ''; document.getElementById('newAttrVal').value  = ''; document.getElementById('addAttrModal').classList.add('open'); setTimeout(() => document.getElementById('newAttrName').focus(), 50); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function confirmAddNode() {
+  const tag = document.getElementById('newTagName').value.trim();
+  const txt = document.getElementById('newTagText').value;
+  if (!tag || !/^[a-zA-Z_][\w.-]*$/.test(tag)) { alert('Invalid tag name.'); return; }
+  const newEl = xmlDoc.createElement(tag);
+  if (txt) newEl.appendChild(xmlDoc.createTextNode(txt));
+  _addNodeTarget.appendChild(newEl); _collapsed.delete(_addNodeTarget);
+  markModified(); renderTree(); closeModal('addNodeModal');
+}
+function confirmAddAttr() {
+  const name = document.getElementById('newAttrName').value.trim();
+  const val  = document.getElementById('newAttrVal').value;
+  if (!name || !/^[a-zA-Z_][\w.-]*$/.test(name)) { alert('Invalid attribute name.'); return; }
+  _addAttrTarget.setAttribute(name, val); markModified(); renderTree(); closeModal('addAttrModal');
+}
+
+document.querySelectorAll('.modal-overlay').forEach(o => o.addEventListener('click', e => { if (e.target === o) closeModal(o.id); }));
+document.getElementById('addNodeModal').addEventListener('keydown', e => { if (e.key==='Enter') confirmAddNode(); if (e.key==='Escape') closeModal('addNodeModal'); });
+document.getElementById('addAttrModal').addEventListener('keydown', e => { if (e.key==='Enter') confirmAddAttr(); if (e.key==='Escape') closeModal('addAttrModal'); });
+
+// ── FILE I/O ───────────────────────────────────────────────────
+function openFile(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const r = new FileReader();
+  r.onload = ev => { if (tryParse(ev.target.result)) setStatus('ok', `Loaded: ${file.name}`); };
+  r.readAsText(file); e.target.value = '';
+}
+
+function saveFile() {
+  if (!xmlDoc) { alert('Nothing to save.'); return; }
+  const xml = prettyPrint(new XMLSerializer().serializeToString(xmlDoc));
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(new Blob([xml], {type:'application/xml'})), download:'output.xml'
+  });
+  a.click(); URL.revokeObjectURL(a.href);
+  modified = false;
+  document.getElementById('modifiedStatus').textContent = '✓ saved';
+  document.getElementById('modifiedStatus').className   = 'ok';
+}
+
+function loadSample() {
+  tryParse(`<?xml version="1.0" encoding="UTF-8"?>
+<config>
+  <app name="MyApp" version="2.1.0">
+    <settings>
+      <theme>dark</theme>
+      <language>en-US</language>
+      <debug>false</debug>
+    </settings>
+    <database>
+      <host>localhost</host>
+      <port>5432</port>
+      <name>mydb</name>
+    </database>
+  </app>
+  <users>
+    <user id="1">
+      <name>Alice</name>
+      <email>alice@example.com</email>
+      <role>admin</role>
+    </user>
+    <user id="2">
+      <name>Bob</name>
+      <email>bob@example.com</email>
+      <role>viewer</role>
+    </user>
+  </users>
+</config>`);
+  setStatus('ok', 'Sample loaded');
+}
+
+// ── PRETTY PRINT ───────────────────────────────────────────────
+function prettyPrint(xml) {
+  let out = '', indent = 0, tab = '  ';
+  xml = xml.replace(/>\s*</g, '><');
+  for (let i = 0; i < xml.length; i++) {
+    const c = xml[i];
+    if (c === '<') {
+      const isClose = xml[i+1] === '/';
+      const isPI    = xml[i+1] === '?';
+      if (isClose) { indent = Math.max(0, indent-1); out += '\n'+tab.repeat(indent); }
+      else if (!isPI) { out += '\n'+tab.repeat(indent); }
+      out += c;
+    } else if (c === '>') {
+      out += c;
+      const seg = out.slice(out.lastIndexOf('\n'));
+      if (!seg.includes('/>') && seg.includes('<') && out[out.lastIndexOf('<')+1] !== '/' && out[out.lastIndexOf('<')+1] !== '?') indent++;
+    } else { out += c; }
+  }
+  return out.trim().replace(/\n{2,}/g, '\n');
+}
+
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey && e.key === 's') { e.preventDefault(); saveFile(); }
+  if (e.key === 'Escape') document.getElementById('depthTooltip').style.display = 'none';
+});
+</script>
+</body>
+</html>
