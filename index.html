@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dashboard</title>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -195,6 +194,14 @@
       color: var(--border);
       letter-spacing: 0.1em;
     }
+
+  /* Local system font stack (no external fonts) */
+  :root {
+    --local-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+    --local-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Segoe UI Mono", monospace;
+  }
+  body { font-family: var(--local-sans); }
+  pre, code, kbd, samp, .editable, .jrow, .node-content, .logo sub, .tog { font-family: var(--local-mono); }
   </style>
 </head>
 <body>
