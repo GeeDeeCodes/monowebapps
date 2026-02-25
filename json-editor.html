@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>JSON Editor</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg:        #0f1117;
+    --surface:   #161920;
+    --surface2:  #1c1f28;
+    --surface3:  #232733;
+    --border:    #2a2e3d;
+    --border2:   #353a4d;
+    --accent:    #e8843a;
+    --accent2:   #4eca7e;
+    --blue:      #60a8f0;
+    --purple:    #b07ef5;
+    --red:       #f07070;
+    --text:      #e4ddd0;
+    --text-mid:  #a89e90;
+    --text-dim:  #666e88;
+    --null:      #666e88;
+    --mono:      'IBM Plex Mono', monospace;
+    --serif:     'Playfair Display', serif;
+    --shadow:    0 1px 3px rgba(0,0,0,0.4), 0 4px 16px rgba(0,0,0,0.3);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── HEADER ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    height: 54px;
+    background: var(--surface);
+    border-bottom: 2px solid var(--border);
+    flex-shrink: 0;
+    box-shadow: var(--shadow);
+    position: relative;
+    z-index: 10;
+  }
+
+  .logo {
+    font-family: var(--serif);
+    font-weight: 900;
+    font-size: 20px;
+    color: var(--accent);
+    letter-spacing: -0.5px;
+    display: flex; align-items: baseline; gap: 8px;
+  }
+  .logo sub { font-family: var(--mono); font-size: 10px; color: var(--text-dim); font-weight: 400; letter-spacing: 1px; text-transform: uppercase; }
+
+  .header-actions { display: flex; gap: 8px; align-items: center; }
+
+  button {
+    cursor: pointer;
+    border: 1.5px solid var(--border2);
+    background: var(--surface);
+    color: var(--text-mid);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    padding: 5px 13px;
+    border-radius: 5px;
+    transition: all 0.15s;
+    display: flex; align-items: center; gap: 5px;
+    font-weight: 500;
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); background: rgba(200,105,10,0.05); }
+  button.primary {
+    background: var(--accent); color: #fff;
+    border-color: var(--accent); font-weight: 600;
+  }
+  button.primary:hover { background: #a85508; border-color: #a85508; }
+
+  /* ── STATUS BAR ── */
+  .statusbar {
+    display: flex; align-items: center; gap: 14px;
+    padding: 0 20px; height: 28px;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px; color: var(--text-dim);
+    flex-shrink: 0;
+  }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border2); flex-shrink: 0; }
+  .dot.ok  { background: var(--accent2); box-shadow: 0 0 5px rgba(26,107,58,0.4); }
+  .dot.err { background: var(--red); box-shadow: 0 0 5px rgba(192,57,43,0.4); }
+  .st-ok   { color: var(--accent2); font-weight: 500; }
+  .st-err  { color: var(--red); font-weight: 500; }
+  .sep     { color: var(--border2); }
+  .modified { color: var(--accent) !important; font-weight: 600; }
+
+  /* ── TOOLBAR ── */
+  .toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 16px; height: 36px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0; gap: 8px;
+  }
+  .toolbar-left  { display: flex; gap: 6px; align-items: center; }
+  .toolbar-right { display: flex; gap: 6px; align-items: center; }
+  .toolbar button { height: 24px; padding: 0 10px; font-size: 11px; }
+  .badge {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 20px; padding: 1px 10px;
+    font-size: 10px; color: var(--text-dim); font-weight: 500;
+  }
+  .badge.accent { color: var(--accent); border-color: rgba(200,105,10,0.3); }
+
+  /* ── TREE AREA ── */
+  .tree-area {
+    flex: 1; overflow-y: auto; overflow-x: auto;
+    padding: 16px 24px 60px;
+    background: var(--bg);
+  }
+
+  ::-webkit-scrollbar { width: 7px; height: 7px; }
+  ::-webkit-scrollbar-track { background: var(--surface2); }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+  /* ── TREE NODES ── */
+  .jnode { margin: 0; }
+
+  .jrow {
+    display: flex; align-items: flex-start;
+    padding: 2px 6px; border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.1s;
+    position: relative;
+    line-height: 1.9;
+  }
+  .jrow:hover { background: rgba(200,105,10,0.06); }
+  .jrow.selected { background: rgba(200,105,10,0.1); outline: 1.5px solid rgba(200,105,10,0.3); }
+  .jrow:hover > .jactions { opacity: 1; }
+
+  .tog {
+    background: none; border: none; color: var(--text-dim);
+    font-size: 10px; width: 18px; height: 22px;
+    padding: 0; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; border-radius: 3px; transition: color 0.1s;
+    font-family: var(--mono);
+  }
+  .tog:hover { color: var(--accent); }
+
+  .jcontent { flex: 1; min-width: 0; word-break: break-all; }
+
+  /* ── JSON SYNTAX COLORS ── */
+  .j-key    { color: var(--accent); font-weight: 600; }
+  .j-str    { color: var(--accent2); }
+  .j-num    { color: var(--blue); font-weight: 500; }
+  .j-bool   { color: var(--purple); font-weight: 600; }
+  .j-null   { color: var(--null); font-style: italic; }
+  .j-punct  { color: var(--text-dim); }
+  .j-idx    { color: var(--text-dim); font-size: 11px; }
+  .j-type   { color: var(--text-dim); font-size: 11px; font-style: italic; }
+
+  .jchildren {
+    padding-left: 22px;
+    border-left: 1.5px solid var(--border);
+    margin-left: 9px;
+  }
+
+  /* ── EDITABLE ── */
+  .editable {
+    display: inline; background: none; border: none; outline: none;
+    font-family: var(--mono); font-size: 13px; color: inherit;
+    padding: 0 1px; cursor: text;
+    border-bottom: 1.5px dashed transparent;
+    transition: border-color 0.15s; min-width: 4px;
+  }
+  .editable:hover  { border-bottom-color: var(--border2); }
+  .editable:focus  { border-bottom-color: var(--accent); background: rgba(200,105,10,0.07); border-radius: 2px 2px 0 0; }
+
+  /* ── ACTIONS ── */
+  .jactions {
+    opacity: 0; display: flex; gap: 2px;
+    transition: opacity 0.15s; margin-left: 8px; flex-shrink: 0;
+    align-items: center;
+  }
+  .jactions button { padding: 1px 7px; font-size: 10px; height: 18px; font-weight: 500; }
+  .act-add  { color: var(--accent2) !important; border-color: rgba(26,107,58,0.3) !important; }
+  .act-add:hover  { background: rgba(26,107,58,0.08) !important; }
+  .act-del  { color: var(--red)     !important; border-color: rgba(192,57,43,0.3) !important; }
+  .act-del:hover  { background: rgba(192,57,43,0.08) !important; }
+  .act-type { color: var(--blue)    !important; border-color: rgba(37,99,168,0.3) !important; }
+  .act-type:hover { background: rgba(37,99,168,0.08) !important; }
+
+  /* ── EMPTY / ERROR ── */
+  .empty-state {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; height: 100%; color: var(--text-dim); gap: 14px;
+  }
+  .empty-state .icon { font-size: 44px; }
+  .empty-state p { font-size: 12px; }
+
+  .error-box {
+    margin: 16px; padding: 12px 16px;
+    background: rgba(192,57,43,0.07);
+    border: 1.5px solid rgba(192,57,43,0.25);
+    border-radius: 8px; color: var(--red);
+    font-size: 12px; line-height: 1.6;
+  }
+
+  /* ── DEPTH TOOLTIP ── */
+  #depthTooltip {
+    position: fixed;
+    background: var(--surface3);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    border-radius: 8px; padding: 10px 14px;
+    font-size: 11px; pointer-events: none; z-index: 300;
+    display: none; min-width: 180px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  }
+  #depthTooltip .tt-top { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }
+  #depthTooltip .tt-num { font-family: var(--serif); font-size: 28px; font-weight: 900; color: var(--accent); line-height: 1; }
+  #depthTooltip .tt-sub { font-size: 10px; color: var(--text-dim); letter-spacing: 0.5px; }
+  #depthTooltip .tt-key { font-size: 13px; color: var(--accent); font-weight: 600; margin-top:1px; }
+  #depthTooltip .tt-path { font-size: 10px; color: var(--text-dim); margin-top: 5px; padding-top: 5px; border-top: 1px solid var(--border); }
+  #depthTooltip .tt-meta { font-size: 10px; color: var(--text-mid); margin-top: 2px; }
+
+  /* ── MODALS ── */
+  .overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7); z-index: 200;
+    align-items: center; justify-content: center;
+    backdrop-filter: blur(2px);
+  }
+  .overlay.open { display: flex; }
+  .modal {
+    background: var(--surface); border: 1.5px solid var(--border);
+    border-radius: 10px; padding: 24px; min-width: 360px;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.18);
+    animation: slideIn 0.15s ease;
+  }
+  @keyframes slideIn { from { transform: translateY(-10px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .modal h3 { font-family: var(--serif); font-size: 17px; color: var(--accent); margin-bottom: 16px; }
+  .modal label { display: block; font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px; font-weight: 600; }
+  .modal input, .modal select {
+    width: 100%; background: var(--bg); border: 1.5px solid var(--border);
+    border-radius: 5px; color: var(--text); font-family: var(--mono);
+    font-size: 13px; padding: 8px 10px; outline: none; margin-bottom: 12px;
+    transition: border-color 0.15s;
+  }
+  .modal input:focus, .modal select:focus { border-color: var(--accent); }
+  .modal select { cursor: pointer; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+
+  /* ── PASTE OVERLAY ── */
+  .paste-box {
+    background: var(--surface); border: 1.5px solid var(--border);
+    border-radius: 12px; padding: 24px; width: 620px; max-width: 92vw;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.18);
+    animation: slideIn 0.15s ease;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .paste-box h3 { font-family: var(--serif); font-size: 17px; color: var(--accent); }
+  .paste-box textarea {
+    width: 100%; height: 280px; resize: vertical;
+    background: var(--bg); border: 1.5px solid var(--border);
+    border-radius: 6px; color: var(--text); font-family: var(--mono);
+    font-size: 12px; line-height: 1.7; padding: 10px 12px;
+    outline: none; caret-color: var(--accent); transition: border-color 0.15s;
+  }
+  .paste-box textarea:focus { border-color: var(--accent); }
+  .paste-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+  @keyframes fadeIn { from { opacity:0; transform: translateX(5px); } to { opacity:1; transform:none; } }
+  .jnode { animation: fadeIn 0.1s ease; }
+
+  /* type indicator chip */
+  .type-chip {
+    display: inline-block;
+    font-size: 10px; padding: 0 5px; border-radius: 3px; margin-left: 4px;
+    vertical-align: middle; font-style: normal;
+    border: 1px solid; opacity: 0.7;
+  }
+  .chip-obj    { color: var(--accent);  border-color: rgba(200,105,10,0.3);  background: rgba(200,105,10,0.07); }
+  .chip-arr    { color: var(--blue);    border-color: rgba(37,99,168,0.3);   background: rgba(37,99,168,0.07);  }
+  .chip-str    { color: var(--accent2); border-color: rgba(26,107,58,0.3);   background: rgba(26,107,58,0.07);  }
+  .chip-num    { color: var(--blue);    border-color: rgba(37,99,168,0.3);   background: rgba(37,99,168,0.07);  }
+  .chip-bool   { color: var(--purple);  border-color: rgba(124,58,173,0.3);  background: rgba(124,58,173,0.07); }
+  .chip-null   { color: var(--null);    border-color: rgba(154,140,120,0.3); background: rgba(154,140,120,0.07);}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">JSON<sub>edit</sub></div>
+  <div class="header-actions">
+    <button onclick="loadSample()">⊞ Sample</button>
+    <button onclick="document.getElementById('fileInput').click()">↑ Open File</button>
+    <input id="fileInput" type="file" accept=".json,.txt" style="display:none" onchange="openFile(event)"/>
+    <button onclick="openPaste()">✎ Paste JSON</button>
+    <button class="primary" onclick="saveFile()">↓ Save JSON</button>
+  </div>
+</header>
+
+<div class="statusbar">
+  <div class="dot" id="statusDot"></div>
+  <span id="statusText">No file loaded</span>
+  <span class="sep">|</span>
+  <span id="nodeCount" style="color:var(--accent)">—</span>
+  <span class="sep">|</span>
+  <span id="selectedInfo" style="color:var(--text-dim)">click any node to inspect</span>
+  <span style="flex:1"></span>
+  <span id="modifiedStatus"></span>
+</div>
+
+<div class="toolbar">
+  <div class="toolbar-left">
+    <button onclick="expandAll()">⊞ Expand All</button>
+    <button onclick="collapseAll()">⊟ Collapse All</button>
+  </div>
+  <div class="toolbar-right">
+    <span class="badge accent" id="maxDepthBadge">max depth: —</span>
+    <span class="badge" id="totalKeysBadge">— keys</span>
+  </div>
+</div>
+
+<div class="tree-area" id="treeContainer">
+  <div class="empty-state">
+    <div class="icon">{ }</div>
+    <p>Open a file, paste JSON, or load the sample</p>
+  </div>
+</div>
+
+<div id="depthTooltip"></div>
+
+<!-- Paste overlay -->
+<div class="overlay" id="pasteOverlay">
+  <div class="paste-box">
+    <h3>Paste JSON</h3>
+    <textarea id="pasteInput" spellcheck="false" placeholder='{"key": "value", ...}'></textarea>
+    <div class="paste-actions">
+      <button onclick="closePaste()">Cancel</button>
+      <button class="primary" onclick="parseFromPaste()">Parse ↻  (Ctrl+Enter)</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add key modal -->
+<div class="overlay" id="addKeyModal">
+  <div class="modal">
+    <h3>Add Property</h3>
+    <label>Key Name</label>
+    <input id="newKeyName" placeholder="property"/>
+    <label>Value Type</label>
+    <select id="newKeyType">
+      <option value="string">String</option>
+      <option value="number">Number</option>
+      <option value="boolean">Boolean</option>
+      <option value="null">Null</option>
+      <option value="object">Object {}</option>
+      <option value="array">Array []</option>
+    </select>
+    <label>Value <span id="typeHint" style="color:var(--text-dim);font-size:10px;text-transform:none"></span></label>
+    <input id="newKeyVal" placeholder="value"/>
+    <div class="modal-actions">
+      <button onclick="closeModal('addKeyModal')">Cancel</button>
+      <button class="primary" onclick="confirmAddKey()">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add array item modal -->
+<div class="overlay" id="addItemModal">
+  <div class="modal">
+    <h3>Add Array Item</h3>
+    <label>Value Type</label>
+    <select id="newItemType">
+      <option value="string">String</option>
+      <option value="number">Number</option>
+      <option value="boolean">Boolean</option>
+      <option value="null">Null</option>
+      <option value="object">Object {}</option>
+      <option value="array">Array []</option>
+    </select>
+    <label>Value</label>
+    <input id="newItemVal" placeholder="value"/>
+    <div class="modal-actions">
+      <button onclick="closeModal('addItemModal')">Cancel</button>
+      <button class="primary" onclick="confirmAddItem()">Add</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── STATE ─────────────────────────────────────────────────────
+let jsonRoot = null;       // the live JS object/array
+let modified  = false;
+let _collapsed = new WeakSet();
+let _selectedRow = null;
+let _addTarget = null;
+let _tooltipTimer = null;
+
+// ── PARSE ─────────────────────────────────────────────────────
+function tryParse(text) {
+  try {
+    jsonRoot = JSON.parse(text);
+    modified = false;
+    renderTree();
+    setStatus('ok', 'Parsed successfully');
+    return true;
+  } catch(e) {
+    setStatus('err', 'Parse error');
+    document.getElementById('treeContainer').innerHTML =
+      `<div class="error-box">⚠ JSON Parse Error<br/><br/>${escHtml(e.message)}</div>`;
+    return false;
+  }
+}
+
+// ── RENDER ────────────────────────────────────────────────────
+function renderTree() {
+  if (jsonRoot === null && jsonRoot !== null) return;
+  const c = document.getElementById('treeContainer');
+  c.innerHTML = '';
+
+  let nodeCount = 0, maxDepth = 0, totalKeys = 0;
+  function countAll(val, d) {
+    nodeCount++;
+    maxDepth = Math.max(maxDepth, d);
+    if (isObj(val)) { Object.keys(val).forEach(k => { totalKeys++; countAll(val[k], d+1); }); }
+    else if (Array.isArray(val)) val.forEach(v => countAll(v, d+1));
+  }
+  countAll(jsonRoot, 0);
+
+  document.getElementById('nodeCount').textContent  = `${nodeCount} nodes`;
+  document.getElementById('maxDepthBadge').textContent = `max depth: ${maxDepth}`;
+  document.getElementById('totalKeysBadge').textContent = `${totalKeys} keys`;
+
+  // Root wrapper
+  const root = renderValue(jsonRoot, null, null, null, 0);
+  c.appendChild(root);
+}
+
+function renderValue(val, parentObj, parentKey, parentArr, depth) {
+  const wrap = document.createElement('div');
+  wrap.className = 'jnode';
+
+  if (isObj(val)) {
+    renderObject(wrap, val, parentObj, parentKey, parentArr, depth);
+  } else if (Array.isArray(val)) {
+    renderArray(wrap, val, parentObj, parentKey, parentArr, depth);
+  } else {
+    renderPrimitive(wrap, val, parentObj, parentKey, parentArr, depth);
+  }
+  return wrap;
+}
+
+function renderObject(wrap, obj, parentObj, parentKey, parentArr, depth) {
+  const keys = Object.keys(obj);
+  const collapsed = _collapsed.has(obj);
+
+  const row = makeRow(depth);
+  const tog = makeTog(keys.length > 0, collapsed);
+  if (keys.length > 0) tog.onclick = e => { e.stopPropagation(); toggleCol(obj, wrap, tog); };
+
+  const content = el('span', 'jcontent');
+  if (parentKey !== null) { content.appendChild(mkk(parentKey)); content.appendChild(pun(': ')); }
+  content.appendChild(pun('{'));
+  if (collapsed || keys.length === 0) {
+    content.appendChild(el('span', 'j-type', keys.length === 0 ? ' }' : ` … ${keys.length} keys }`));
+  } else {
+    content.appendChild(el('span', 'j-type', ` // ${keys.length} ${keys.length===1?'key':'keys'}`));
+  }
+
+  row.appendChild(tog); row.appendChild(content);
+  addActions(row, 'object', obj, parentObj, parentKey, parentArr, depth);
+  wrap.appendChild(row);
+
+  if (keys.length > 0 && !collapsed) {
+    const cw = el('div', 'jchildren');
+    keys.forEach(k => cw.appendChild(renderValue(obj[k], obj, k, null, depth+1)));
+    const closeRow = el('div', 'jrow');
+    closeRow.style.cursor = 'default';
+    closeRow.appendChild(el('span','', ''));
+    closeRow.appendChild(pun('}'));
+    cw.appendChild(closeRow);
+    wrap.appendChild(cw);
+  }
+
+  row.addEventListener('click', e => {
+    if (e.target.classList.contains('editable') || e.target.classList.contains('tog')) return;
+    selectNode(row, parentKey ?? '(root)', 'object', keys.length, depth, e, buildPath(parentObj, parentKey, parentArr));
+  });
+}
+
+function renderArray(wrap, arr, parentObj, parentKey, parentArr, depth) {
+  const collapsed = _collapsed.has(arr);
+
+  const row = makeRow(depth);
+  const tog = makeTog(arr.length > 0, collapsed);
+  if (arr.length > 0) tog.onclick = e => { e.stopPropagation(); toggleCol(arr, wrap, tog); };
+
+  const content = el('span', 'jcontent');
+  if (parentKey !== null) { content.appendChild(mkk(parentKey)); content.appendChild(pun(': ')); }
+  content.appendChild(pun('['));
+  if (collapsed || arr.length === 0) {
+    content.appendChild(el('span', 'j-type', arr.length === 0 ? ' ]' : ` … ${arr.length} items ]`));
+  } else {
+    content.appendChild(el('span', 'j-type', ` // ${arr.length} item${arr.length===1?'':'s'}`));
+  }
+
+  row.appendChild(tog); row.appendChild(content);
+  addActions(row, 'array', arr, parentObj, parentKey, parentArr, depth);
+  wrap.appendChild(row);
+
+  if (arr.length > 0 && !collapsed) {
+    const cw = el('div', 'jchildren');
+    arr.forEach((v, i) => {
+      const itemWrap = renderValue(v, null, null, {arr, i}, depth+1);
+      // Prepend index label
+      const firstRow = itemWrap.querySelector('.jrow');
+      if (firstRow) {
+        const idxSpan = el('span', 'j-idx', `[${i}] `);
+        idxSpan.style.marginRight = '2px';
+        firstRow.querySelector('.jcontent').prepend(idxSpan);
+      }
+      cw.appendChild(itemWrap);
+    });
+    const closeRow = el('div', 'jrow');
+    closeRow.style.cursor = 'default';
+    closeRow.appendChild(el('span','',''));
+    closeRow.appendChild(pun(']'));
+    cw.appendChild(closeRow);
+    wrap.appendChild(cw);
+  }
+
+  row.addEventListener('click', e => {
+    if (e.target.classList.contains('editable') || e.target.classList.contains('tog')) return;
+    selectNode(row, parentKey ?? '(root)', 'array', arr.length, depth, e, buildPath(parentObj, parentKey, parentArr));
+  });
+}
+
+function renderPrimitive(wrap, val, parentObj, parentKey, parentArr, depth) {
+  const type = val === null ? 'null' : typeof val;
+  const row  = makeRow(depth);
+  const tog  = makeTog(false, false);
+  const content = el('span', 'jcontent');
+
+  if (parentKey !== null) {
+    // Editable key
+    const keyEl = document.createElement('span');
+    keyEl.className = 'editable j-key';
+    keyEl.contentEditable = 'true';
+    keyEl.textContent = parentKey;
+    keyEl.spellcheck = false;
+    keyEl.addEventListener('blur', () => {
+      const newKey = keyEl.textContent.trim();
+      if (newKey && newKey !== parentKey && parentObj && !(newKey in parentObj)) {
+        parentObj[newKey] = parentObj[parentKey];
+        delete parentObj[parentKey];
+        markModified(); renderTree();
+      } else { keyEl.textContent = parentKey; }
+    });
+    keyEl.addEventListener('keydown', e => { if (e.key==='Enter'){e.preventDefault();keyEl.blur();} e.stopPropagation(); });
+    keyEl.addEventListener('click', e => e.stopPropagation());
+    content.append(keyEl, pun(': '));
+  }
+
+  // Value editable
+  const valEl = document.createElement('span');
+  valEl.className = `editable j-${type}`;
+  valEl.contentEditable = 'true';
+  valEl.textContent = type === 'string' ? val : String(val);
+  valEl.spellcheck = false;
+  valEl.addEventListener('blur', () => {
+    const raw = valEl.textContent;
+    let newVal;
+    if (type === 'string')  { newVal = raw; }
+    else if (type === 'number') { newVal = Number(raw); if (isNaN(newVal)) { valEl.textContent = String(val); return; } }
+    else if (type === 'boolean') { newVal = raw === 'true'; }
+    else { newVal = null; }
+    setVal(parentObj, parentKey, parentArr, newVal);
+    markModified();
+  });
+  valEl.addEventListener('keydown', e => { if (e.key==='Enter'){e.preventDefault();valEl.blur();} e.stopPropagation(); });
+  valEl.addEventListener('click', e => e.stopPropagation());
+
+  if (type === 'string') { content.append(pun('"'), valEl, pun('"')); }
+  else { content.appendChild(valEl); }
+
+  // Type chip
+  content.appendChild(el('span', `type-chip chip-${type}`, type));
+
+  row.appendChild(tog); row.appendChild(content);
+  addActions(row, 'primitive', val, parentObj, parentKey, parentArr, depth);
+  wrap.appendChild(row);
+
+  row.addEventListener('click', e => {
+    if (e.target.classList.contains('editable')) return;
+    selectNode(row, parentKey ?? '[item]', type, null, depth, e, buildPath(parentObj, parentKey, parentArr));
+  });
+}
+
+// ── ACTIONS ───────────────────────────────────────────────────
+function addActions(row, nodeType, val, parentObj, parentKey, parentArr, depth) {
+  const acts = el('div', 'jactions');
+
+  if (nodeType === 'object') {
+    const bAdd = btn('+ key', 'act-add', e => { e.stopPropagation(); openAddKeyModal(val); });
+    acts.appendChild(bAdd);
+  }
+  if (nodeType === 'array') {
+    const bAdd = btn('+ item', 'act-add', e => { e.stopPropagation(); openAddItemModal(val); });
+    acts.appendChild(bAdd);
+  }
+
+  // Delete (not root)
+  const isRoot = (parentObj === null && parentArr === null);
+  if (!isRoot) {
+    const bDel = btn('✕', 'act-del', e => {
+      e.stopPropagation();
+      const label = parentKey !== null ? `"${parentKey}"` : 'this item';
+      if (confirm(`Delete ${label}?`)) {
+        if (parentObj && parentKey !== null) { delete parentObj[parentKey]; }
+        else if (parentArr) { parentArr.arr.splice(parentArr.i, 1); }
+        markModified(); renderTree();
+      }
+    });
+    acts.appendChild(bDel);
+  }
+
+  row.appendChild(acts);
+}
+
+// ── SELECT ────────────────────────────────────────────────────
+function selectNode(row, key, type, count, depth, e, path) {
+  if (_selectedRow) _selectedRow.classList.remove('selected');
+  row.classList.add('selected');
+  _selectedRow = row;
+
+  const countStr = count !== null
+    ? (type === 'object' ? `${count} keys` : type === 'array' ? `${count} items` : '')
+    : '';
+
+  document.getElementById('selectedInfo').innerHTML =
+    `<span style="color:var(--accent);font-weight:700">depth ${depth}</span>` +
+    ` <span style="color:var(--border2)">|</span> ` +
+    `<span style="color:var(--accent)">${escHtml(String(key))}</span>` +
+    ` <span style="color:var(--text-dim)">${type}</span>` +
+    (countStr ? ` <span style="color:var(--text-dim)">· ${countStr}</span>` : '');
+
+  const tt = document.getElementById('depthTooltip');
+  tt.innerHTML =
+    `<div class="tt-top">
+      <span class="tt-num">${depth}</span>
+      <div><div class="tt-sub">DEPTH</div><div class="tt-key">${escHtml(String(key))}</div></div>
+    </div>` +
+    `<div class="tt-meta">${type}${countStr ? ' · ' + countStr : ''}</div>` +
+    (path ? `<div class="tt-path">${escHtml(path)}</div>` : '');
+
+  const rect = row.getBoundingClientRect();
+  tt.style.display = 'block';
+  tt.style.top  = (rect.bottom + 6) + 'px';
+  tt.style.left = Math.min(rect.left + 10, window.innerWidth - 220) + 'px';
+
+  clearTimeout(_tooltipTimer);
+  _tooltipTimer = setTimeout(() => tt.style.display = 'none', 4000);
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.jrow')) {
+    document.getElementById('depthTooltip').style.display = 'none';
+    if (_selectedRow) { _selectedRow.classList.remove('selected'); _selectedRow = null; }
+    document.getElementById('selectedInfo').textContent = 'click any node to inspect';
+  }
+});
+
+// ── COLLAPSE ──────────────────────────────────────────────────
+function toggleCol(ref, wrap, tog) {
+  const cw = wrap.querySelector('.jchildren'); if (!cw) return;
+  const isCol = cw.style.display === 'none';
+  if (isCol) { cw.style.display = ''; tog.textContent = '▼'; _collapsed.delete(ref); }
+  else        { cw.style.display = 'none'; tog.textContent = '▶'; _collapsed.add(ref); }
+  // Update inline summary in content
+  const content = wrap.querySelector('.jrow > .jcontent');
+  const typeSpan = content?.querySelector('.j-type');
+  if (typeSpan && !isCol) {
+    const isArr = Array.isArray(ref);
+    const count = isArr ? ref.length : Object.keys(ref).length;
+    typeSpan.textContent = ` … ${count} ${isArr ? 'items' : 'keys'} ${isArr ? ']' : '}'}`;
+  } else if (typeSpan && isCol) {
+    const isArr = Array.isArray(ref);
+    const count = isArr ? ref.length : Object.keys(ref).length;
+    typeSpan.textContent = ` // ${count} ${isArr ? `item${count!==1?'s':''}` : `key${count!==1?'s':''}`}`;
+  }
+}
+function expandAll()   { _collapsed = new WeakSet(); renderTree(); }
+function collapseAll() {
+  function addAll(v) { if (isObj(v)||Array.isArray(v)) { _collapsed.add(v); Object.values(isObj(v)?v:v.reduce((a,c,i)=>({...a,[i]:c}),{})).forEach(addAll); } }
+  if (jsonRoot !== null) addAll(jsonRoot); renderTree();
+}
+
+// ── PATH ──────────────────────────────────────────────────────
+function buildPath(parentObj, parentKey, parentArr) {
+  // Simple path: just return key for now (deep path tracking would need a ref map)
+  if (parentKey !== null) return `root.${parentKey}`;
+  if (parentArr) return `root[${parentArr.i}]`;
+  return 'root';
+}
+
+// ── VALUE SET ─────────────────────────────────────────────────
+function setVal(parentObj, parentKey, parentArr, newVal) {
+  if (parentObj && parentKey !== null) parentObj[parentKey] = newVal;
+  else if (parentArr) parentArr.arr[parentArr.i] = newVal;
+}
+
+// ── STATUS ────────────────────────────────────────────────────
+function setStatus(type, msg) {
+  document.getElementById('statusDot').className    = 'dot ' + type;
+  document.getElementById('statusText').textContent  = msg;
+  document.getElementById('statusText').className    = type === 'ok' ? 'st-ok' : 'st-err';
+}
+function markModified() {
+  modified = true;
+  document.getElementById('modifiedStatus').textContent = '● unsaved';
+  document.getElementById('modifiedStatus').className   = 'modified';
+}
+
+// ── PASTE ─────────────────────────────────────────────────────
+function openPaste()  { document.getElementById('pasteOverlay').classList.add('open'); setTimeout(() => document.getElementById('pasteInput').focus(), 50); }
+function closePaste() { document.getElementById('pasteOverlay').classList.remove('open'); }
+function parseFromPaste() { const t = document.getElementById('pasteInput').value.trim(); if (t && tryParse(t)) closePaste(); }
+document.getElementById('pasteOverlay').addEventListener('click', e => { if (e.target===document.getElementById('pasteOverlay')) closePaste(); });
+document.getElementById('pasteInput').addEventListener('keydown', e => {
+  if (e.key==='Enter'&&e.ctrlKey){ e.preventDefault(); parseFromPaste(); }
+  if (e.key==='Escape') closePaste();
+});
+
+// ── MODALS ────────────────────────────────────────────────────
+function openAddKeyModal(obj)  { _addTarget = obj; document.getElementById('newKeyName').value=''; document.getElementById('newKeyVal').value=''; document.getElementById('newKeyType').value='string'; updateTypeHint(); document.getElementById('addKeyModal').classList.add('open'); setTimeout(()=>document.getElementById('newKeyName').focus(),50); }
+function openAddItemModal(arr) { _addTarget = arr; document.getElementById('newItemVal').value=''; document.getElementById('newItemType').value='string'; document.getElementById('addItemModal').classList.add('open'); setTimeout(()=>document.getElementById('newItemVal').focus(),50); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function updateTypeHint() {
+  const t = document.getElementById('newKeyType').value;
+  const hints = { string:'text', number:'e.g. 42', boolean:'true or false', null:'(no value)', object:'empty object', array:'empty array' };
+  document.getElementById('typeHint').textContent = '— ' + (hints[t]||'');
+  document.getElementById('newKeyVal').disabled = (t === 'null' || t === 'object' || t === 'array');
+  document.getElementById('newKeyVal').placeholder = hints[t] || '';
+}
+document.getElementById('newKeyType').addEventListener('change', updateTypeHint);
+
+function castVal(type, raw) {
+  if (type==='null') return null;
+  if (type==='object') return {};
+  if (type==='array')  return [];
+  if (type==='number') { const n=Number(raw); return isNaN(n)?0:n; }
+  if (type==='boolean') return raw==='true'||raw==='1';
+  return raw;
+}
+
+function confirmAddKey() {
+  const key  = document.getElementById('newKeyName').value.trim();
+  const type = document.getElementById('newKeyType').value;
+  const raw  = document.getElementById('newKeyVal').value;
+  if (!key) { alert('Key name required.'); return; }
+  _addTarget[key] = castVal(type, raw);
+  markModified(); renderTree(); closeModal('addKeyModal');
+}
+function confirmAddItem() {
+  const type = document.getElementById('newItemType').value;
+  const raw  = document.getElementById('newItemVal').value;
+  _addTarget.push(castVal(type, raw));
+  markModified(); renderTree(); closeModal('addItemModal');
+}
+
+document.querySelectorAll('.overlay').forEach(o => o.addEventListener('click', e => { if(e.target===o) closeModal(o.id); }));
+document.getElementById('addKeyModal').addEventListener('keydown',  e => { if(e.key==='Enter') confirmAddKey();  if(e.key==='Escape') closeModal('addKeyModal');  });
+document.getElementById('addItemModal').addEventListener('keydown', e => { if(e.key==='Enter') confirmAddItem(); if(e.key==='Escape') closeModal('addItemModal'); });
+
+// ── FILE I/O ──────────────────────────────────────────────────
+function openFile(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const r = new FileReader();
+  r.onload = ev => { if (tryParse(ev.target.result)) setStatus('ok', `Loaded: ${file.name}`); };
+  r.readAsText(file); e.target.value = '';
+}
+
+function saveFile() {
+  if (jsonRoot === null) { alert('Nothing to save.'); return; }
+  const json = JSON.stringify(jsonRoot, null, 2);
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(new Blob([json], {type:'application/json'})), download:'output.json'
+  });
+  a.click(); URL.revokeObjectURL(a.href);
+  modified = false;
+  document.getElementById('modifiedStatus').textContent = '✓ saved';
+  document.getElementById('modifiedStatus').className   = 'st-ok';
+}
+
+function loadSample() {
+  tryParse(JSON.stringify({
+    "project": "My App",
+    "version": "3.2.1",
+    "active": true,
+    "score": 9.8,
+    "author": { "name": "Jane Doe", "email": "jane@example.com", "role": "lead" },
+    "tags": ["typescript", "node", "api"],
+    "config": {
+      "port": 8080,
+      "debug": false,
+      "db": { "host": "localhost", "port": 5432, "ssl": true }
+    },
+    "contributors": [
+      { "name": "Alice", "commits": 142 },
+      { "name": "Bob",   "commits": 87  }
+    ],
+    "deprecated": null
+  }, null, 2));
+  setStatus('ok', 'Sample loaded');
+}
+
+// ── HELPERS ───────────────────────────────────────────────────
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls)  e.className   = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+function pun(t)  { return el('span', 'j-punct', t); }
+function mkk(k)  {
+  const s = el('span','j-key'); s.textContent = k; return s;
+}
+function btn(label, cls, onclick) {
+  const b = document.createElement('button');
+  b.className = cls; b.textContent = label; b.onclick = onclick; return b;
+}
+function makeRow(depth) {
+  const r = el('div', 'jrow'); return r;
+}
+function makeTog(hasChildren, collapsed) {
+  const t = el('button', 'tog');
+  t.textContent = hasChildren ? (collapsed ? '▶' : '▼') : '·';
+  return t;
+}
+function isObj(v) { return v !== null && typeof v === 'object' && !Array.isArray(v); }
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ── KEYBOARD ──────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey && e.key==='s') { e.preventDefault(); saveFile(); }
+  if (e.key==='Escape') document.getElementById('depthTooltip').style.display='none';
+});
+</script>
+</body>
+</html>
