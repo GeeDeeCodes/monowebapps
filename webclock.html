@@ -965,7 +965,8 @@ function timerTick() {
     timerRunning = false;
     document.getElementById('timer-start-btn').textContent = 'Start';
     timerRender();
-    playBeep();
+    // use looping beep sound (same as alarm); auto-stops after 10 beeps
+    playBeep(true);
     showNotification('Timer', 'Your timer has finished!');
     return;
   }
@@ -1171,6 +1172,7 @@ pomoRender();
 
 // === AUDIO ===
 let audioCtx = null, beepOscillator = null, beepInterval = null;
+let beepCount = 0; // track number of beeps when looping
 
 function getAudioCtx() {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -1180,6 +1182,8 @@ function getAudioCtx() {
 function playBeep(loop = false) {
   try {
     const ctx = getAudioCtx();
+    // reset counter when starting new beep series
+    beepCount = 0;
     const doBeep = () => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -1190,6 +1194,14 @@ function playBeep(loop = false) {
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
       osc.start(ctx.currentTime);
       osc.stop(ctx.currentTime + 0.5);
+
+      // increment count and auto-stop after ten if looping
+      if (loop) {
+        beepCount++;
+        if (beepCount >= 10) {
+          stopBeep();
+        }
+      }
     };
     doBeep();
     if (loop) beepInterval = setInterval(doBeep, 1000);
@@ -1198,6 +1210,7 @@ function playBeep(loop = false) {
 
 function stopBeep() {
   if (beepInterval) { clearInterval(beepInterval); beepInterval = null; }
+  beepCount = 0;
 }
 
 // === NOTIFICATIONS ===
