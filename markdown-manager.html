@@ -1,0 +1,1283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Markdown Manager</title>
+<style>
+  :root {
+    --bg: #0e0e0e;
+    --surface: #161616;
+    --surface2: #1e1e1e;
+    --border: #2a2a2a;
+    --accent: #c8a96e;
+    --accent2: #7eb8a4;
+    --text: #e8e0d5;
+    --text-muted: #6b6560;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: Georgia, 'Times New Roman', serif;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    height: 52px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    gap: 12px;
+  }
+
+  .logo {
+    font-family: Georgia, serif;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+  }
+
+  .logo-icon {
+    width: 26px; height: 26px;
+    background: var(--accent);
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    color: #0e0e0e;
+    font-size: 0.68rem; font-weight: 700;
+    font-family: 'Courier New', monospace;
+  }
+
+  .toolbar {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    font-family: 'Courier New', monospace;
+    font-size: 0.7rem;
+    padding: 5px 12px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    cursor: pointer;
+    border-radius: 3px;
+    letter-spacing: 0.04em;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .divider { width: 1px; height: 22px; background: var(--border); flex-shrink: 0; }
+
+  .file-input-wrapper { position: relative; }
+  .file-input-wrapper input[type="file"] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%;
+  }
+
+  .view-toggle {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .view-btn {
+    padding: 5px 11px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.68rem;
+    background: var(--surface2);
+    color: var(--text-muted);
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.04em;
+  }
+  .view-btn.active { background: var(--accent); color: #0e0e0e; }
+  .view-btn:not(.active):hover { color: var(--text); }
+
+  main { display: flex; flex: 1; overflow: hidden; }
+
+  .pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .pane.hidden { flex: 0 !important; width: 0 !important; overflow: hidden; }
+
+  .pane-label {
+    font-family: 'Courier New', monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.12em;
+    color: var(--text-muted);
+    padding: 7px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    text-transform: uppercase;
+    flex-shrink: 0;
+  }
+
+  .splitter {
+    width: 4px;
+    background: var(--border);
+    cursor: col-resize;
+    flex-shrink: 0;
+    transition: background 0.15s;
+  }
+  .splitter:hover, .splitter.dragging { background: var(--accent); }
+
+  #editor {
+    flex: 1;
+    background: var(--bg);
+    color: var(--text);
+    border: none; outline: none; resize: none;
+    font-family: 'Courier New', monospace;
+    font-size: 0.875rem;
+    line-height: 1.75;
+    padding: 28px 32px;
+    tab-size: 2;
+  }
+
+  #preview-scroll {
+    flex: 1;
+    overflow-y: auto;
+    background: var(--surface);
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  #preview {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 44px 40px;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 1rem;
+    line-height: 1.85;
+    color: var(--text);
+  }
+
+  /* Preview markdown styles */
+  #preview h1, #preview h2, #preview h3,
+  #preview h4, #preview h5, #preview h6 {
+    font-family: Georgia, serif;
+    color: var(--accent);
+    margin: 1.7em 0 0.55em;
+    line-height: 1.3;
+  }
+  #preview h1 { font-size: 1.9rem; border-bottom: 1px solid var(--border); padding-bottom: 0.35em; }
+  #preview h2 { font-size: 1.45rem; }
+  #preview h3 { font-size: 1.18rem; }
+  #preview h4 { font-size: 1rem; }
+  #preview p { margin: 0.85em 0; }
+  #preview a { color: var(--accent2); text-decoration: underline; text-underline-offset: 3px; }
+  #preview strong { font-weight: 700; color: #f0e8dd; }
+  #preview em { font-style: italic; color: #ccc4bb; }
+  #preview del { text-decoration: line-through; color: var(--text-muted); }
+  #preview code {
+    font-family: 'Courier New', monospace;
+    font-size: 0.83em;
+    background: #1a1a1a;
+    color: var(--accent);
+    padding: 2px 6px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+  }
+  #preview pre {
+    background: #111;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 18px 20px;
+    overflow-x: auto;
+    margin: 1.3em 0;
+  }
+  #preview pre code {
+    background: none; border: none; padding: 0;
+    color: #c8d8b8; font-size: 0.84rem;
+  }
+  #preview blockquote {
+    border-left: 3px solid var(--accent);
+    margin: 1.3em 0;
+    padding: 6px 0 6px 18px;
+    color: var(--text-muted);
+    font-style: italic;
+  }
+  #preview ul, #preview ol { margin: 0.8em 0; padding-left: 2em; }
+  #preview li { margin: 0.28em 0; }
+  #preview hr { border: none; border-top: 1px solid var(--border); margin: 1.8em 0; }
+  #preview table { width: 100%; border-collapse: collapse; margin: 1.3em 0; font-size: 0.9em; }
+  #preview th {
+    background: var(--surface2); color: var(--accent);
+    font-family: 'Courier New', monospace; font-size: 0.74em;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 9px 13px; border: 1px solid var(--border);
+  }
+  #preview td { padding: 7px 13px; border: 1px solid var(--border); }
+  #preview tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+  #preview img { max-width: 100%; border-radius: 4px; }
+  #preview input[type="checkbox"] { margin-right: 6px; }
+
+  .statusbar {
+    height: 24px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: flex; align-items: center;
+    padding: 0 16px; gap: 20px; flex-shrink: 0;
+  }
+  .status-item {
+    font-family: 'Courier New', monospace;
+    font-size: 0.62rem; color: var(--text-muted); letter-spacing: 0.06em;
+  }
+
+  .toast {
+    position: fixed; bottom: 36px; left: 50%;
+    transform: translateX(-50%) translateY(16px);
+    background: var(--accent); color: #0e0e0e;
+    padding: 9px 20px; border-radius: 3px;
+    font-family: 'Courier New', monospace; font-size: 0.76rem;
+    opacity: 0; transition: all 0.2s; pointer-events: none; z-index: 999;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">MD</div>
+    Markdown Manager
+  </div>
+  <div class="toolbar">
+    <div class="view-toggle">
+      <button class="view-btn active" onclick="setView('split')" id="btn-split">Split</button>
+      <button class="view-btn" onclick="setView('editor')" id="btn-editor">Edit</button>
+      <button class="view-btn" onclick="setView('preview')" id="btn-preview">Preview</button>
+    </div>
+    <div class="divider"></div>
+    <div class="file-input-wrapper">
+      <button class="btn">↑ Open .md</button>
+      <input type="file" accept=".md,.txt,.markdown" onchange="openFile(event)">
+    </div>
+    <button class="btn" onclick="downloadMd()">↓ Save .md</button>
+    <div class="divider"></div>
+    <button class="btn" onclick="saveHtml()">Export .html</button>
+    <button class="btn" onclick="saveTxt()">Export .txt</button>
+    <button class="btn" onclick="saveDocx()">Export .docx</button>
+    <button class="btn" onclick="savePdf()">Export .pdf</button>
+  </div>
+</header>
+
+<main>
+  <div class="pane" id="editor-pane">
+    <div class="pane-label">Editor</div>
+    <textarea id="editor" spellcheck="false" placeholder="# Start writing Markdown here...
+
+Or open a .md file using the button above.
+
+## Features
+- **Live preview** as you type
+- Export to PDF, DOCX, HTML, TXT
+- Fully offline — no internet required
+- Drag & drop .md files
+
+```js
+console.log('Hello, Markdown Manager!');
+```
+"></textarea>
+  </div>
+  <div class="splitter" id="splitter"></div>
+  <div class="pane" id="preview-pane">
+    <div class="pane-label">Preview</div>
+    <div id="preview-scroll"><div id="preview"></div></div>
+  </div>
+</main>
+
+<div class="statusbar">
+  <span class="status-item" id="stat-words">0 words</span>
+  <span class="status-item" id="stat-chars">0 chars</span>
+  <span class="status-item" id="stat-lines">0 lines</span>
+  <span class="status-item" id="stat-read">~0 min read</span>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+// ─── MARKDOWN PARSER ──────────────────────────────────────────────────────────
+
+function parseMarkdown(md) {
+  const lines = md.split('\n');
+  let html = '';
+  let i = 0;
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function parseInline(s) {
+    // order matters
+    s = escHtml(s);
+    // images before links
+    s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1">');
+    // links
+    s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+    // bold+italic
+    s = s.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+    s = s.replace(/___(.+?)___/g, '<strong><em>$1</em></strong>');
+    // bold
+    s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/__(.+?)__/g, '<strong>$1</strong>');
+    // italic
+    s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    s = s.replace(/_(.+?)_/g, '<em>$1</em>');
+    // strikethrough
+    s = s.replace(/~~(.+?)~~/g, '<del>$1</del>');
+    // inline code
+    s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+    return s;
+  }
+
+  function parseBlock() {
+    let out = '';
+    while (i < lines.length) {
+      const line = lines[i];
+      const raw = line;
+
+      // blank line
+      if (line.trim() === '') { i++; continue; }
+
+      // fenced code block
+      if (line.startsWith('```')) {
+        const lang = line.slice(3).trim();
+        i++;
+        let code = '';
+        while (i < lines.length && !lines[i].startsWith('```')) {
+          code += escHtml(lines[i]) + '\n';
+          i++;
+        }
+        i++; // closing ```
+        out += `<pre><code class="lang-${lang}">${code}</code></pre>\n`;
+        continue;
+      }
+
+      // horizontal rule
+      if (/^[-*_]{3,}\s*$/.test(line.trim())) {
+        out += '<hr>\n'; i++; continue;
+      }
+
+      // headings
+      const hm = line.match(/^(#{1,6})\s+(.*)/);
+      if (hm) {
+        const level = hm[1].length;
+        out += `<h${level}>${parseInline(hm[2])}</h${level}>\n`;
+        i++; continue;
+      }
+
+      // blockquote
+      if (line.startsWith('> ')) {
+        let bq = '';
+        while (i < lines.length && lines[i].startsWith('> ')) {
+          bq += lines[i].slice(2) + '\n';
+          i++;
+        }
+        out += `<blockquote>${parseInline(bq.trim())}</blockquote>\n`;
+        continue;
+      }
+
+      // unordered list
+      if (/^[\s]*[-*+] /.test(line)) {
+        out += '<ul>\n';
+        while (i < lines.length && /^[\s]*[-*+] /.test(lines[i])) {
+          const item = lines[i].replace(/^[\s]*[-*+] /, '');
+          // task list
+          if (/^\[[ x]\] /i.test(item)) {
+            const checked = item[1].toLowerCase() === 'x';
+            out += `<li><input type="checkbox"${checked?' checked':''} disabled>${parseInline(item.slice(4))}</li>\n`;
+          } else {
+            out += `<li>${parseInline(item)}</li>\n`;
+          }
+          i++;
+        }
+        out += '</ul>\n';
+        continue;
+      }
+
+      // ordered list
+      if (/^\d+\. /.test(line)) {
+        out += '<ol>\n';
+        while (i < lines.length && /^\d+\. /.test(lines[i])) {
+          const item = lines[i].replace(/^\d+\. /, '');
+          out += `<li>${parseInline(item)}</li>\n`;
+          i++;
+        }
+        out += '</ol>\n';
+        continue;
+      }
+
+      // table
+      if (line.includes('|') && i+1 < lines.length && /^\|?[\s:-]+[\|]/.test(lines[i+1])) {
+        const headers = line.split('|').map(c=>c.trim()).filter(c=>c!=='');
+        i += 2; // skip header and separator
+        out += '<table><thead><tr>';
+        headers.forEach(h => out += `<th>${parseInline(h)}</th>`);
+        out += '</tr></thead><tbody>\n';
+        while (i < lines.length && lines[i].includes('|') && lines[i].trim() !== '') {
+          const cells = lines[i].split('|').map(c=>c.trim()).filter(c=>c!=='');
+          out += '<tr>';
+          cells.forEach(c => out += `<td>${parseInline(c)}</td>`);
+          out += '</tr>\n';
+          i++;
+        }
+        out += '</tbody></table>\n';
+        continue;
+      }
+
+      // paragraph — collect contiguous non-special lines
+      let para = '';
+      while (
+        i < lines.length &&
+        lines[i].trim() !== '' &&
+        !lines[i].startsWith('#') &&
+        !lines[i].startsWith('```') &&
+        !lines[i].startsWith('> ') &&
+        !/^[\s]*[-*+] /.test(lines[i]) &&
+        !/^\d+\. /.test(lines[i]) &&
+        !/^[-*_]{3,}\s*$/.test(lines[i].trim())
+      ) {
+        para += (para ? ' ' : '') + lines[i];
+        i++;
+      }
+      if (para) out += `<p>${parseInline(para)}</p>\n`;
+    }
+    return out;
+  }
+
+  return parseBlock();
+}
+
+// ─── APP STATE ────────────────────────────────────────────────────────────────
+
+const editor = document.getElementById('editor');
+const preview = document.getElementById('preview');
+
+function render() {
+  preview.innerHTML = parseMarkdown(editor.value);
+  updateStats(editor.value);
+}
+
+function updateStats(text) {
+  const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+  document.getElementById('stat-words').textContent = words + ' words';
+  document.getElementById('stat-chars').textContent = text.length + ' chars';
+  document.getElementById('stat-lines').textContent = text.split('\n').length + ' lines';
+  document.getElementById('stat-read').textContent = '~' + Math.max(1, Math.round(words/200)) + ' min read';
+}
+
+editor.addEventListener('input', render);
+editor.addEventListener('keydown', e => {
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const s = editor.selectionStart;
+    editor.value = editor.value.substring(0,s) + '  ' + editor.value.substring(editor.selectionEnd);
+    editor.selectionStart = editor.selectionEnd = s + 2;
+    render();
+  }
+});
+
+render();
+
+// ─── VIEW MODES ───────────────────────────────────────────────────────────────
+
+let currentView = 'split';
+function setView(mode) {
+  currentView = mode;
+  const ep = document.getElementById('editor-pane');
+  const pp = document.getElementById('preview-pane');
+  const sp = document.getElementById('splitter');
+  document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('btn-'+mode).classList.add('active');
+  ep.classList.remove('hidden'); pp.classList.remove('hidden');
+  sp.style.display = 'block';
+  if (mode==='editor') { pp.classList.add('hidden'); sp.style.display='none'; }
+  if (mode==='preview') { ep.classList.add('hidden'); sp.style.display='none'; }
+}
+
+// ─── SPLITTER ─────────────────────────────────────────────────────────────────
+
+const splitter = document.getElementById('splitter');
+let dragging = false;
+splitter.addEventListener('mousedown', e => { dragging=true; splitter.classList.add('dragging'); e.preventDefault(); });
+document.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  const rect = document.querySelector('main').getBoundingClientRect();
+  const pct = Math.min(85, Math.max(15, (e.clientX-rect.left)/rect.width*100));
+  document.getElementById('editor-pane').style.cssText = `flex:none;width:${pct}%`;
+  document.getElementById('preview-pane').style.cssText = `flex:1`;
+});
+document.addEventListener('mouseup', () => { dragging=false; splitter.classList.remove('dragging'); });
+
+// ─── FILE OPEN / DRAG DROP ────────────────────────────────────────────────────
+
+function openFile(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const r = new FileReader();
+  r.onload = ev => { editor.value = ev.target.result; render(); showToast('Loaded: '+file.name); };
+  r.readAsText(file);
+}
+
+document.body.addEventListener('dragover', e => e.preventDefault());
+document.body.addEventListener('drop', e => {
+  e.preventDefault();
+  const file = e.dataTransfer.files[0];
+  if (file && /\.(md|txt|markdown)$/.test(file.name)) {
+    const r = new FileReader();
+    r.onload = ev => { editor.value = ev.target.result; render(); showToast('Loaded: '+file.name); };
+    r.readAsText(file);
+  }
+});
+
+// ─── DOWNLOAD HELPERS ─────────────────────────────────────────────────────────
+
+function download(blob, filename) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
+// ─── SAVE MD ──────────────────────────────────────────────────────────────────
+
+function downloadMd() {
+  download(new Blob([editor.value], {type:'text/markdown'}), 'document.md');
+  showToast('Saved document.md');
+}
+
+// ─── EXPORT TXT ───────────────────────────────────────────────────────────────
+
+function saveTxt() {
+  let t = editor.value;
+  t = t.replace(/^#{1,6}\s+/gm,'');
+  t = t.replace(/\*\*\*(.+?)\*\*\*/g,'$1').replace(/\*\*(.+?)\*\*/g,'$1').replace(/\*(.+?)\*/g,'$1');
+  t = t.replace(/___(.+?)___/g,'$1').replace(/__(.+?)__/g,'$1').replace(/_(.+?)_/g,'$1');
+  t = t.replace(/~~(.+?)~~/g,'$1');
+  t = t.replace(/`([^`]+)`/g,'$1').replace(/```[\w]*\n?/g,'');
+  t = t.replace(/^>\s*/gm,'').replace(/^[\s]*[-*+]\s+/gm,'').replace(/^\d+\.\s+/gm,'');
+  t = t.replace(/!\[([^\]]*)\]\([^)]+\)/g,'[$1]').replace(/\[([^\]]+)\]\([^)]+\)/g,'$1');
+  t = t.replace(/^[-*_]{3,}\s*$/gm,'---').replace(/\n{3,}/g,'\n\n');
+  download(new Blob([t.trim()], {type:'text/plain'}), 'document.txt');
+  showToast('Saved document.txt');
+}
+
+// ─── EXPORT HTML ──────────────────────────────────────────────────────────────
+
+function saveHtml() {
+  const body = preview.innerHTML;
+  const html = `<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Document</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0e0e0e;color:#e8e0d5;font-family:Georgia,serif;font-size:1rem;line-height:1.85;padding:56px 24px}
+.page{max-width:720px;margin:0 auto}
+h1,h2,h3,h4,h5,h6{font-family:Georgia,serif;color:#c8a96e;margin:1.7em 0 .55em;line-height:1.3}
+h1{font-size:1.9rem;border-bottom:1px solid #2a2a2a;padding-bottom:.35em}
+h2{font-size:1.45rem}h3{font-size:1.18rem}
+p{margin:.85em 0}
+a{color:#7eb8a4;text-decoration:underline}
+strong{font-weight:700;color:#f0e8dd}
+em{font-style:italic;color:#ccc4bb}
+del{text-decoration:line-through;color:#6b6560}
+code{font-family:'Courier New',monospace;font-size:.83em;background:#1a1a1a;color:#c8a96e;padding:2px 6px;border-radius:3px;border:1px solid #2a2a2a}
+pre{background:#111;border:1px solid #2a2a2a;border-radius:5px;padding:18px 20px;overflow-x:auto;margin:1.3em 0}
+pre code{background:none;border:none;padding:0;color:#c8d8b8;font-size:.84rem}
+blockquote{border-left:3px solid #c8a96e;margin:1.3em 0;padding:6px 0 6px 18px;color:#6b6560;font-style:italic}
+ul,ol{margin:.8em 0;padding-left:2em}li{margin:.28em 0}
+hr{border:none;border-top:1px solid #2a2a2a;margin:1.8em 0}
+table{width:100%;border-collapse:collapse;margin:1.3em 0;font-size:.9em}
+th{background:#1e1e1e;color:#c8a96e;font-family:'Courier New',monospace;font-size:.74em;letter-spacing:.08em;text-transform:uppercase;padding:9px 13px;border:1px solid #2a2a2a}
+td{padding:7px 13px;border:1px solid #2a2a2a}
+tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+img{max-width:100%;border-radius:4px}
+</style></head>
+<body><div class="page">${body}</div></body></html>`;
+  download(new Blob([html], {type:'text/html'}), 'document.html');
+  showToast('Saved document.html');
+}
+
+// ─── EXPORT DOCX ─────────────────────────────────────────────────────────────
+// Pure JS OOXML/ZIP builder — no libraries
+
+function saveDocx() {
+  showToast('Generating DOCX…');
+  try {
+    const xml = buildDocxXml(editor.value);
+    const zipBytes = buildDocxZip(xml);
+    download(new Blob([zipBytes], {type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'}), 'document.docx');
+    showToast('Saved document.docx');
+  } catch(e) {
+    console.error(e);
+    showToast('DOCX error: ' + e.message);
+  }
+}
+
+function escXml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function inlineToXml(s) {
+  let out = '';
+  // process bold+italic, bold, italic, code, plain
+  const re = /\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|`([^`]+)`|~~(.+?)~~|([^*`~]+|[*`~])/g;
+  let m;
+  while ((m=re.exec(s))!==null) {
+    if (m[1]) out += `<w:r><w:rPr><w:b/><w:i/></w:rPr><w:t xml:space="preserve">${escXml(m[1])}</w:t></w:r>`;
+    else if (m[2]) out += `<w:r><w:rPr><w:b/></w:rPr><w:t xml:space="preserve">${escXml(m[2])}</w:t></w:r>`;
+    else if (m[3]) out += `<w:r><w:rPr><w:i/></w:rPr><w:t xml:space="preserve">${escXml(m[3])}</w:t></w:r>`;
+    else if (m[4]) out += `<w:r><w:rPr><w:rFonts w:ascii="Courier New" w:hAnsi="Courier New"/><w:sz w:val="18"/><w:color w:val="8B6914"/></w:rPr><w:t xml:space="preserve">${escXml(m[4])}</w:t></w:r>`;
+    else if (m[5]) out += `<w:r><w:rPr><w:strike/></w:rPr><w:t xml:space="preserve">${escXml(m[5])}</w:t></w:r>`;
+    else if (m[6]) out += `<w:r><w:t xml:space="preserve">${escXml(m[6])}</w:t></w:r>`;
+  }
+  return out;
+}
+
+function buildDocxXml(md) {
+  const lines = md.split('\n');
+  let body = '';
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+
+    // blank
+    if (line.trim() === '') { body += '<w:p/>'; i++; continue; }
+
+    // code fence
+    if (line.startsWith('```')) {
+      i++;
+      let code = '';
+      while (i < lines.length && !lines[i].startsWith('```')) { code += lines[i] + '\n'; i++; }
+      i++;
+      const escaped = escXml(code.trimEnd());
+      body += `<w:p><w:pPr><w:pStyle w:val="Normal"/><w:ind w:left="720"/><w:shd w:val="clear" w:fill="F4F4F4"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Courier New" w:hAnsi="Courier New"/><w:sz w:val="18"/><w:color w:val="555555"/></w:rPr><w:t xml:space="preserve">${escaped}</w:t></w:r></w:p>`;
+      continue;
+    }
+
+    // headings
+    const hm = line.match(/^(#{1,6})\s+(.*)/);
+    if (hm) {
+      const lvl = hm[1].length;
+      const style = ['Heading1','Heading2','Heading3','Heading4','Heading5','Heading6'][lvl-1];
+      body += `<w:p><w:pPr><w:pStyle w:val="${style}"/></w:pPr>${inlineToXml(hm[2])}</w:p>`;
+      i++; continue;
+    }
+
+    // blockquote
+    if (line.startsWith('> ')) {
+      let bq = '';
+      while (i < lines.length && lines[i].startsWith('> ')) { bq += lines[i].slice(2)+' '; i++; }
+      body += `<w:p><w:pPr><w:ind w:left="720"/><w:pBdr><w:left w:val="single" w:sz="12" w:space="4" w:color="C8A96E"/></w:pBdr></w:pPr><w:r><w:rPr><w:i/><w:color w:val="888888"/></w:rPr><w:t xml:space="preserve">${escXml(bq.trim())}</w:t></w:r></w:p>`;
+      continue;
+    }
+
+    // hr
+    if (/^[-*_]{3,}\s*$/.test(line.trim())) {
+      body += `<w:p><w:pPr><w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="AAAAAA"/></w:pBdr></w:pPr></w:p>`;
+      i++; continue;
+    }
+
+    // unordered list
+    if (/^[\s]*[-*+] /.test(line)) {
+      while (i < lines.length && /^[\s]*[-*+] /.test(lines[i])) {
+        const item = lines[i].replace(/^[\s]*[-*+] /, '');
+        body += `<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr>${inlineToXml(item)}</w:p>`;
+        i++;
+      }
+      continue;
+    }
+
+    // ordered list
+    if (/^\d+\. /.test(line)) {
+      while (i < lines.length && /^\d+\. /.test(lines[i])) {
+        const item = lines[i].replace(/^\d+\. /, '');
+        body += `<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="2"/></w:numPr></w:pPr>${inlineToXml(item)}</w:p>`;
+        i++;
+      }
+      continue;
+    }
+
+    // paragraph
+    let para = '';
+    while (
+      i < lines.length && lines[i].trim() !== '' &&
+      !lines[i].startsWith('#') && !lines[i].startsWith('```') &&
+      !lines[i].startsWith('> ') && !/^[\s]*[-*+] /.test(lines[i]) &&
+      !/^\d+\. /.test(lines[i]) && !/^[-*_]{3,}/.test(lines[i].trim())
+    ) { para += (para?' ':'')+lines[i]; i++; }
+    if (para) body += `<w:p>${inlineToXml(para)}</w:p>`;
+  }
+
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:wpc="http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas"
+  xmlns:mo="http://schemas.microsoft.com/office/mac/office/2008/main"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  xmlns:mv="urn:schemas-microsoft-com:mac:vml"
+  xmlns:o="urn:schemas-microsoft-com:office:office"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+  xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"
+  xmlns:v="urn:schemas-microsoft-com:vml"
+  xmlns:wp14="http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing"
+  xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+  xmlns:w10="urn:schemas-microsoft-com:office:word"
+  xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml"
+  xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup"
+  xmlns:wpi="http://schemas.microsoft.com/office/word/2010/wordprocessingInk"
+  xmlns:wne="http://schemas.microsoft.com/office/word/2006/wordml"
+  xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"
+  mc:Ignorable="w14 wp14">
+<w:body>${body}<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr></w:body></w:document>`;
+}
+
+// ─── EXPORT PDF ───────────────────────────────────────────────────────────────
+// Pure JS PDF builder — no libraries, no browser print — FIXED
+
+function savePdf() {
+  showToast('Generating PDF…');
+  try {
+    const pdfBytes = buildPdf(editor.value);
+    download(new Blob([pdfBytes], {type:'application/pdf'}), 'document.pdf');
+    showToast('Saved document.pdf');
+  } catch(e) {
+    console.error(e);
+    showToast('PDF error: ' + e.message);
+  }
+}
+
+function buildPdf(md) {
+  const PW = 595, PH = 842;
+  const ML = 72, MR = 72, MT = 72, MB = 72;
+  const TW = PW - ML - MR;
+
+  const FONTS = {
+    normal:   { name: 'Times-Roman',      size: 12, leading: 18 },
+    bold:     { name: 'Times-Bold',       size: 12, leading: 18 },
+    italic:   { name: 'Times-Italic',     size: 12, leading: 18 },
+    boldital: { name: 'Times-BoldItalic', size: 12, leading: 18 },
+    mono:     { name: 'Courier',          size: 10, leading: 14 },
+    h1:       { name: 'Times-Bold',       size: 20, leading: 28 },
+    h2:       { name: 'Times-Bold',       size: 16, leading: 23 },
+    h3:       { name: 'Times-Bold',       size: 14, leading: 20 },
+    h4:       { name: 'Times-Bold',       size: 12, leading: 18 },
+    h5:       { name: 'Times-BoldItalic', size: 12, leading: 18 },
+    h6:       { name: 'Times-Italic',     size: 12, leading: 18 },
+  };
+
+  const usedFonts = ['Times-Roman','Times-Bold','Times-Italic','Times-BoldItalic','Courier'];
+  const fontRefMap = {};
+  usedFonts.forEach((fn,i) => { fontRefMap[fn] = '/F'+(i+1); });
+
+  // Sanitize to latin-1, replace common unicode
+  function sanitize(s) {
+    return s
+      .replace(/[\u2018\u2019\u02BC]/g, "'")
+      .replace(/[\u201C\u201D]/g, '"')
+      .replace(/\u2013/g, '-').replace(/\u2014/g, '--')
+      .replace(/\u2026/g, '...').replace(/\u00A0/g, ' ')
+      .replace(/[^\x20-\xFF]/g, '?');
+  }
+
+  function pdfStr(s) {
+    return sanitize(s).replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)');
+  }
+
+  function charWidth(ch, size, fk) {
+    if (fk === 'mono') return size * 0.6;
+    const w =
+      ' ' === ch ? 0.25 :
+      '!"\'()*,.:;[]`{}'.includes(ch) ? 0.33 :
+      'fjrt'.includes(ch) ? 0.38 :
+      'iIl1|;'.includes(ch) ? 0.28 :
+      'sxyz'.includes(ch) ? 0.44 :
+      'mwMW'.includes(ch) ? 0.78 :
+      'ABCDEFGHKLNOPQRSTU'.includes(ch) ? 0.67 :
+      0.50;
+    return size * w * ((fk==='bold'||fk==='boldital'||fk.startsWith('h')) ? 1.05 : 1.0);
+  }
+
+  function textWidth(s, size, fk) {
+    let w = 0; for (const ch of s) w += charWidth(ch, size, fk); return w;
+  }
+
+  function parseInlineSegments(s) {
+    const segs = [];
+    const re = /\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|`([^`]+)`|~~(.+?)~~|([^*`~]+|[*`~])/g;
+    let m;
+    while ((m=re.exec(s))!==null) {
+      if (m[1]) segs.push({text:m[1],bold:true,italic:true});
+      else if (m[2]) segs.push({text:m[2],bold:true});
+      else if (m[3]) segs.push({text:m[3],italic:true});
+      else if (m[4]) segs.push({text:m[4],mono:true});
+      else if (m[5]) segs.push({text:m[5]});
+      else if (m[6]) segs.push({text:m[6]});
+    }
+    return segs.filter(s=>s.text);
+  }
+
+  function fontKeyForSeg(seg) {
+    if (seg.mono) return 'mono';
+    if (seg.bold && seg.italic) return 'boldital';
+    if (seg.bold) return 'bold';
+    if (seg.italic) return 'italic';
+    return 'normal';
+  }
+
+  function parseBlocks(md) {
+    const lines = md.split('\n'), blocks = [];
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+      if (line.trim() === '') { i++; continue; }
+      if (line.startsWith('```')) {
+        i++;
+        let code = '';
+        while (i<lines.length && !lines[i].startsWith('```')) { code+=lines[i]+'\n'; i++; }
+        i++;
+        blocks.push({type:'code', text:code.trimEnd()});
+        continue;
+      }
+      if (/^[-*_]{3,}\s*$/.test(line.trim())) { blocks.push({type:'hr'}); i++; continue; }
+      const hm = line.match(/^(#{1,6})\s+(.*)/);
+      if (hm) { blocks.push({type:'h'+hm[1].length, text:hm[2]}); i++; continue; }
+      if (line.startsWith('> ')) {
+        let bq='';
+        while (i<lines.length && lines[i].startsWith('> ')) { bq+=lines[i].slice(2)+' '; i++; }
+        blocks.push({type:'blockquote', text:bq.trim()});
+        continue;
+      }
+      if (/^[\s]*[-*+] /.test(line)) {
+        while (i<lines.length && /^[\s]*[-*+] /.test(lines[i])) {
+          blocks.push({type:'li', bullet:'-', text:lines[i].replace(/^[\s]*[-*+] /,'')});
+          i++;
+        }
+        continue;
+      }
+      if (/^\d+\. /.test(line)) {
+        let n=0;
+        while (i<lines.length && /^\d+\. /.test(lines[i])) {
+          n++;
+          blocks.push({type:'li', bullet:n+'.', text:lines[i].replace(/^\d+\. /,'')});
+          i++;
+        }
+        continue;
+      }
+      let para='';
+      while (i<lines.length && lines[i].trim()!=='' &&
+        !lines[i].startsWith('#') && !lines[i].startsWith('```') &&
+        !lines[i].startsWith('> ') && !/^[\s]*[-*+] /.test(lines[i]) &&
+        !/^\d+\. /.test(lines[i]) && !/^[-*_]{3,}/.test(lines[i].trim())
+      ) { para+=(para?' ':'')+lines[i]; i++; }
+      if (para) blocks.push({type:'p', text:para});
+    }
+    return blocks;
+  }
+
+  let pages = [], ops = [], y = PH - MT;
+  function newPage() { pages.push(ops.join('\n')); ops=[]; y=PH-MT; }
+  function ensureSpace(n) { if (y-n < MB) newPage(); }
+
+  function emitText(text, x, ty, fk, size, rgb) {
+    const ref = fontRefMap[FONTS[fk].name];
+    const r=rgb?(rgb[0]/255).toFixed(3):'0.100';
+    const g=rgb?(rgb[1]/255).toFixed(3):'0.082';
+    const b=rgb?(rgb[2]/255).toFixed(3):'0.047';
+    ops.push(`${r} ${g} ${b} rg`);
+    ops.push(`BT ${ref} ${size} Tf ${x.toFixed(2)} ${ty.toFixed(2)} Td (${pdfStr(text)}) Tj ET`);
+  }
+
+  function drawLine(x1,y1,x2,y2,lw,r,g,b) {
+    ops.push(`${(r/255).toFixed(3)} ${(g/255).toFixed(3)} ${(b/255).toFixed(3)} RG`);
+    ops.push(`${lw} w ${x1.toFixed(2)} ${y1.toFixed(2)} m ${x2.toFixed(2)} ${y2.toFixed(2)} l S`);
+  }
+
+  function drawRect(x,ry,w,h,r,g,b) {
+    ops.push(`${(r/255).toFixed(3)} ${(g/255).toFixed(3)} ${(b/255).toFixed(3)} rg`);
+    ops.push(`${x.toFixed(2)} ${ry.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re f`);
+  }
+
+  // Tokenise inline segs into words, wrap, and render
+  function renderInline(segs, x0, maxW, baseSize, baseLead) {
+    const tokens = [];
+    for (const seg of segs) {
+      const fk = fontKeyForSeg(seg);
+      const sz = fk==='mono' ? FONTS.mono.size : baseSize;
+      const parts = seg.text.split(/( +)/);
+      for (const p of parts) {
+        if (p==='') continue;
+        if (/^ +$/.test(p)) {
+          if (tokens.length) tokens[tokens.length-1].sp = textWidth(' ',sz,fk)*p.length;
+        } else {
+          tokens.push({text:p, fk, sz, sp:textWidth(' ',sz,fk)});
+        }
+      }
+    }
+    const lineGroups = [];
+    let cur=[], curW=0;
+    for (const t of tokens) {
+      const tw = textWidth(t.text,t.sz,t.fk);
+      const spBefore = cur.length>0 ? (cur[cur.length-1].sp||0) : 0;
+      if (cur.length>0 && curW+spBefore+tw > maxW) {
+        lineGroups.push(cur); cur=[t]; curW=tw;
+      } else {
+        curW += (cur.length>0?spBefore:0)+tw;
+        cur.push(t);
+      }
+    }
+    if (cur.length) lineGroups.push(cur);
+    if (!lineGroups.length) lineGroups.push([]);
+    for (const ln of lineGroups) {
+      ensureSpace(baseLead+2);
+      y -= baseLead;
+      let cx = x0;
+      for (let ti=0;ti<ln.length;ti++) {
+        const t=ln[ti];
+        if (t.text.trim()) emitText(t.text, cx, y, t.fk, t.sz, null);
+        cx += textWidth(t.text,t.sz,t.fk);
+        if (ti<ln.length-1) cx += (t.sp||0);
+      }
+    }
+    return lineGroups.length;
+  }
+
+  const ACCENT=[200,169,110];
+  const blocks = parseBlocks(md);
+
+  for (const block of blocks) {
+    if (block.type==='hr') {
+      ensureSpace(20); y-=10;
+      drawLine(ML,y,ML+TW,y,0.5,180,180,180);
+      y-=10; continue;
+    }
+
+    if (block.type.startsWith('h')) {
+      const lvl=parseInt(block.type[1]);
+      const fk=block.type;
+      const f=FONTS[fk]||FONTS.h4;
+      ensureSpace(f.leading+20);
+      y -= lvl<=2?16:10;
+      // draw text at current y
+      const segs=parseInlineSegments(block.text);
+      let cx=ML;
+      for (const seg of segs) {
+        emitText(seg.text, cx, y, fk, f.size, ACCENT);
+        cx += textWidth(seg.text, f.size, fk);
+      }
+      y -= f.leading;
+      if (lvl===1) { drawLine(ML,y-2,ML+TW,y-2,0.4,120,95,55); y-=6; }
+      continue;
+    }
+
+    if (block.type==='code') {
+      const clines=block.text.split('\n');
+      const lh=FONTS.mono.leading;
+      const boxH=clines.length*lh+14;
+      ensureSpace(boxH+12);
+      y-=6;
+      drawRect(ML, y-boxH+6, TW, boxH, 28,28,28);
+      y-=8;
+      for (const cl of clines) {
+        ops.push('0.72 0.82 0.62 rg');
+        ops.push(`BT /F5 ${FONTS.mono.size} Tf ${(ML+7).toFixed(2)} ${y.toFixed(2)} Td (${pdfStr(cl)}) Tj ET`);
+        y-=lh;
+      }
+      y-=6; continue;
+    }
+
+    if (block.type==='blockquote') {
+      const segs=parseInlineSegments(block.text).map(s=>({...s,italic:true,bold:false}));
+      ensureSpace(FONTS.normal.leading*2+16);
+      y-=8;
+      const startY=y;
+      renderInline(segs, ML+18, TW-22, FONTS.normal.size, FONTS.normal.leading);
+      drawRect(ML, y, 3, startY-y+FONTS.normal.leading, 200,169,110);
+      y-=6; continue;
+    }
+
+    if (block.type==='li') {
+      const segs=parseInlineSegments(block.text);
+      ensureSpace(FONTS.normal.leading+2);
+      const beforeY=y;
+      const savedLen=ops.length;
+      renderInline(segs, ML+22, TW-24, FONTS.normal.size, FONTS.normal.leading);
+      const firstY=beforeY-FONTS.normal.leading;
+      ops.splice(savedLen,0,
+        '0.100 0.082 0.047 rg',
+        `BT /F1 ${FONTS.normal.size} Tf ${(ML+6).toFixed(2)} ${firstY.toFixed(2)} Td (${pdfStr(block.bullet)}) Tj ET`
+      );
+      y-=2; continue;
+    }
+
+    if (block.type==='p') {
+      const segs=parseInlineSegments(block.text);
+      ensureSpace(FONTS.normal.leading+4);
+      y-=5;
+      renderInline(segs, ML, TW, FONTS.normal.size, FONTS.normal.leading);
+      y-=5; continue;
+    }
+  }
+
+  pages.push(ops.join('\n'));
+
+  // ── Assemble PDF as binary (latin-1, not utf-8) ──
+  function strToBytes(s) {
+    const b=new Uint8Array(s.length);
+    for (let i=0;i<s.length;i++) b[i]=s.charCodeAt(i)&0xFF;
+    return b;
+  }
+  function concatBytes(arrays) {
+    const total=arrays.reduce((n,a)=>n+a.length,0);
+    const out=new Uint8Array(total); let off=0;
+    for (const a of arrays) { out.set(a,off); off+=a.length; }
+    return out;
+  }
+
+  const parts=[], offsets=[];
+  let pos=0;
+  function addRaw(s) { const b=strToBytes(s); parts.push(b); pos+=b.length; }
+  function addObj(n,s) {
+    offsets[n]=pos;
+    addRaw(`${n} 0 obj\n${s}\nendobj\n`);
+  }
+
+  const pageCount=pages.length;
+  const POS=3, COS=POS+pageCount, FOS=COS+pageCount;
+
+  addRaw('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n');
+  addObj(1,`<< /Type /Catalog /Pages 2 0 R >>`);
+  addObj(2,`<< /Type /Pages /Kids [${Array.from({length:pageCount},(_,i)=>`${POS+i} 0 R`).join(' ')}] /Count ${pageCount} >>`);
+
+  const fontDict=usedFonts.map((fn,i)=>`/F${i+1} ${FOS+i} 0 R`).join(' ');
+  for (let p=0;p<pageCount;p++) {
+    addObj(POS+p,`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PW} ${PH}] /Contents ${COS+p} 0 R /Resources << /Font << ${fontDict} >> >> >>`);
+  }
+
+  for (let p=0;p<pageCount;p++) {
+    const stream=pages[p];
+    const sb=strToBytes(stream);
+    offsets[COS+p]=pos;
+    const hdr=strToBytes(`${COS+p} 0 obj\n<< /Length ${sb.length} >>\nstream\n`);
+    const ftr=strToBytes(`\nendstream\nendobj\n`);
+    parts.push(hdr); parts.push(sb); parts.push(ftr);
+    pos+=hdr.length+sb.length+ftr.length;
+  }
+
+  for (let fi=0;fi<usedFonts.length;fi++) {
+    addObj(FOS+fi,`<< /Type /Font /Subtype /Type1 /BaseFont /${usedFonts[fi]} /Encoding /WinAnsiEncoding >>`);
+  }
+
+  const totalObjs=FOS+usedFonts.length;
+  const xrefOffset=pos;
+  let xref=`xref\n0 ${totalObjs+1}\n0000000000 65535 f \n`;
+  for (let n=1;n<=totalObjs;n++) xref+=((offsets[n]||0)).toString().padStart(10,'0')+' 00000 n \n';
+  xref+=`trailer\n<< /Size ${totalObjs+1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+  addRaw(xref);
+
+  return concatBytes(parts);
+}
+// ─── ZIP / DOCX PACKAGING ────────────────────────────────────────────────────
+// Minimal ZIP builder for DOCX (no compression, stored only)
+
+function buildDocxZip(documentXml) {
+  const files = {
+    '_rels/.rels': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`,
+
+    'word/_rels/document.xml.rels': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>
+</Relationships>`,
+
+    'word/document.xml': documentXml,
+
+    'word/styles.xml': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="paragraph" w:styleId="Normal"><w:name w:val="Normal"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:style>
+  <w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="240" w:after="120"/></w:pPr><w:rPr><w:b/><w:sz w:val="44"/><w:color w:val="C8A96E"/></w:rPr></w:style>
+  <w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="200" w:after="100"/></w:pPr><w:rPr><w:b/><w:sz w:val="36"/><w:color w:val="C8A96E"/></w:rPr></w:style>
+  <w:style w:type="paragraph" w:styleId="Heading3"><w:name w:val="heading 3"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="160" w:after="80"/></w:pPr><w:rPr><w:b/><w:sz w:val="30"/><w:color w:val="C8A96E"/></w:rPr></w:style>
+  <w:style w:type="paragraph" w:styleId="Heading4"><w:name w:val="heading 4"/><w:basedOn w:val="Normal"/><w:rPr><w:b/><w:sz w:val="26"/><w:color w:val="C8A96E"/></w:rPr></w:style>
+  <w:style w:type="paragraph" w:styleId="Heading5"><w:name w:val="heading 5"/><w:basedOn w:val="Normal"/><w:rPr><w:b/><w:i/><w:sz w:val="24"/><w:color w:val="C8A96E"/></w:rPr></w:style>
+  <w:style w:type="paragraph" w:styleId="Heading6"><w:name w:val="heading 6"/><w:basedOn w:val="Normal"/><w:rPr><w:i/><w:sz w:val="24"/><w:color w:val="C8A96E"/></w:rPr></w:style>
+</w:styles>`,
+
+    'word/numbering.xml': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:abstractNum w:abstractNumId="0"><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="bullet"/><w:lvlText w:val="•"/><w:pPr><w:ind w:left="720" w:hanging="360"/></w:pPr></w:lvl></w:abstractNum>
+  <w:abstractNum w:abstractNumId="1"><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/><w:pPr><w:ind w:left="720" w:hanging="360"/></w:pPr></w:lvl></w:abstractNum>
+  <w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>
+  <w:num w:numId="2"><w:abstractNumId w:val="1"/></w:num>
+</w:numbering>`,
+
+    '[Content_Types].xml': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>
+</Types>`
+  };
+
+  return buildZip(files);
+}
+
+function buildZip(files) {
+  const enc = new TextEncoder();
+  const entries = [];
+
+  function crc32(data) {
+    let c = 0xFFFFFFFF;
+    const table = buildCrcTable();
+    for (let i=0; i<data.length; i++) c = (c>>>8)^table[(c^data[i])&0xFF];
+    return (c^0xFFFFFFFF)>>>0;
+  }
+
+  function buildCrcTable() {
+    const t = new Uint32Array(256);
+    for (let n=0; n<256; n++) {
+      let c=n;
+      for (let k=0; k<8; k++) c = (c&1) ? (0xEDB88320^(c>>>1)) : (c>>>1);
+      t[n]=c;
+    }
+    return t;
+  }
+
+  function u16(n) { return [n&0xFF,(n>>8)&0xFF]; }
+  function u32(n) { return [n&0xFF,(n>>8)&0xFF,(n>>16)&0xFF,(n>>24)&0xFF]; }
+
+  let localOffset = 0;
+  const localHeaders = [];
+  const centralHeaders = [];
+
+  for (const [name, content] of Object.entries(files)) {
+    const nameBytes = enc.encode(name);
+    const dataBytes = enc.encode(content);
+    const crc = crc32(dataBytes);
+    const size = dataBytes.length;
+
+    // Local file header
+    const local = [
+      0x50,0x4B,0x03,0x04, // signature
+      ...u16(20),           // version needed
+      ...u16(0),            // flags
+      ...u16(0),            // compression: stored
+      ...u16(0),            // mod time
+      ...u16(0),            // mod date
+      ...u32(crc),
+      ...u32(size),         // compressed size
+      ...u32(size),         // uncompressed size
+      ...u16(nameBytes.length),
+      ...u16(0),            // extra length
+      ...nameBytes,
+    ];
+    localHeaders.push({ offset: localOffset, name: nameBytes, crc, size, local: new Uint8Array(local), data: dataBytes });
+    localOffset += local.length + size;
+  }
+
+  for (const e of localHeaders) {
+    const central = [
+      0x50,0x4B,0x01,0x02, // signature
+      ...u16(20),           // version made by
+      ...u16(20),           // version needed
+      ...u16(0),            // flags
+      ...u16(0),            // compression
+      ...u16(0),            // mod time
+      ...u16(0),            // mod date
+      ...u32(e.crc),
+      ...u32(e.size),
+      ...u32(e.size),
+      ...u16(e.name.length),
+      ...u16(0),            // extra
+      ...u16(0),            // comment
+      ...u16(0),            // disk start
+      ...u16(0),            // internal attr
+      ...u32(0),            // external attr
+      ...u32(e.offset),
+      ...e.name,
+    ];
+    centralHeaders.push(new Uint8Array(central));
+  }
+
+  const centralOffset = localOffset;
+  const centralSize = centralHeaders.reduce((s,c)=>s+c.length,0);
+
+  const eocd = [
+    0x50,0x4B,0x05,0x06,
+    ...u16(0),
+    ...u16(0),
+    ...u16(centralHeaders.length),
+    ...u16(centralHeaders.length),
+    ...u32(centralSize),
+    ...u32(centralOffset),
+    ...u16(0),
+  ];
+
+  // Assemble
+  const parts = [];
+  for (const e of localHeaders) { parts.push(e.local); parts.push(e.data); }
+  for (const c of centralHeaders) parts.push(c);
+  parts.push(new Uint8Array(eocd));
+
+  const total = parts.reduce((s,p)=>s+p.length,0);
+  const out = new Uint8Array(total);
+  let off = 0;
+  for (const p of parts) { out.set(p,off); off+=p.length; }
+  return out;
+}
+
+// ─── TOAST ────────────────────────────────────────────────────────────────────
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(()=>t.classList.remove('show'), 2800);
+}
+
+// ─── KEYBOARD SHORTCUTS ───────────────────────────────────────────────────────
+
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey) {
+    if (e.key==='s') { e.preventDefault(); downloadMd(); }
+    if (e.key==='p') { e.preventDefault(); savePdf(); }
+  }
+});
+</script>
+</body>
+</html>
