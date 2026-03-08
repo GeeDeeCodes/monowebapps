@@ -1,0 +1,1257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SPECTRO</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+
+:root {
+  --bg:#020408; --surface:#050d14; --border:#0a2030;
+  --cyan:#00e5ff; --green:#00ff88; --amber:#ffb800;
+  --dim:#1a3a4a; --text:#8ecfd8; --red:#ff3355;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+
+body{
+  background:var(--bg);color:var(--text);
+  font-family:'Share Tech Mono',monospace;
+  min-height:100vh;display:flex;flex-direction:column;
+  align-items:center;padding:18px 14px;overflow-x:hidden;
+}
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:100;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.07) 2px,rgba(0,0,0,0.07) 4px);
+}
+
+header{
+  width:100%;max-width:1040px;display:flex;align-items:center;gap:12px;
+  margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:12px;
+}
+h1{
+  font-family:'Orbitron',monospace;font-weight:900;
+  font-size:clamp(1.3rem,3.5vw,1.9rem);color:var(--cyan);letter-spacing:0.2em;
+  text-shadow:0 0 20px rgba(0,229,255,0.5),0 0 40px rgba(0,229,255,0.15);
+}
+.subtitle{font-size:0.58rem;color:var(--dim);letter-spacing:0.18em;}
+.dot{
+  width:8px;height:8px;border-radius:50%;background:var(--dim);
+  margin-left:auto;flex-shrink:0;transition:all 0.3s;
+}
+.dot.on{background:var(--green);box-shadow:0 0 8px var(--green);animation:blink 1.4s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.4}}
+
+.panel-wrap{width:100%;max-width:1040px;display:flex;flex-direction:column;gap:8px;}
+
+/* ── canvases ── */
+.canvas-row{display:flex;}
+.yaxis{
+  width:52px;flex-shrink:0;position:relative;
+  font-size:0.54rem;color:var(--dim);text-align:right;padding-right:6px;
+  user-select:none;
+}
+.yaxis.sh{height:260px;}
+.yaxis.wh{height:60px;}
+.cbox{
+  flex:1;position:relative;border:1px solid var(--border);
+  background:var(--surface);overflow:hidden;
+}
+.cbox.sh{height:260px;}
+.cbox.wh{height:60px;}
+.cbox::before{
+  content:'';position:absolute;inset:0;pointer-events:none;z-index:1;
+  background:linear-gradient(rgba(0,229,255,0.012) 1px,transparent 1px),
+             linear-gradient(90deg,rgba(0,229,255,0.012) 1px,transparent 1px);
+  background-size:60px 40px;
+}
+canvas{display:block;width:100%;height:100%;}
+
+#playhead{
+  position:absolute;top:0;bottom:0;width:1px;z-index:3;display:none;
+  background:rgba(255,184,0,0.8);box-shadow:0 0 4px rgba(255,184,0,0.5);
+  pointer-events:none;
+}
+.idle-msg{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:6px;z-index:2;pointer-events:none;
+}
+.idle-msg span{font-size:0.58rem;color:var(--dim);letter-spacing:0.18em;text-transform:uppercase;}
+
+.xaxis-row{display:flex;padding-left:52px;}
+.xaxis{
+  flex:1;display:flex;justify-content:space-between;
+  padding:3px 0;font-size:0.53rem;color:var(--dim);letter-spacing:0.03em;user-select:none;
+}
+
+/* ── transport ── */
+.transport{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:8px 12px;background:var(--surface);border:1px solid var(--border);
+}
+.transport.dim .tbtn{border-color:var(--dim);color:var(--dim);pointer-events:none;}
+.transport.dim #scrub{opacity:0.3;pointer-events:none;}
+.transport.dim .tdisplay{color:var(--dim);}
+
+.tbtns{display:flex;gap:4px;flex-shrink:0;}
+.tbtn{
+  font-family:'Orbitron',monospace;font-size:0.72rem;font-weight:700;
+  padding:6px 10px;border:1px solid var(--amber);color:var(--amber);
+  background:transparent;cursor:pointer;transition:all 0.15s;
+}
+.tbtn:hover{background:rgba(255,184,0,0.1);box-shadow:0 0 8px rgba(255,184,0,0.3);}
+.tdisplay{
+  font-size:0.62rem;color:var(--amber);white-space:nowrap;
+  flex-shrink:0;min-width:96px;letter-spacing:0.05em;
+}
+.scrub-wrap{flex:1;display:flex;flex-direction:column;gap:3px;min-width:100px;}
+.scrub-lbl{font-size:0.48rem;color:var(--dim);letter-spacing:0.1em;text-transform:uppercase;}
+#scrub{
+  -webkit-appearance:none;width:100%;height:3px;
+  background:var(--border);outline:none;cursor:pointer;
+}
+#scrub::-webkit-slider-thumb{
+  -webkit-appearance:none;width:13px;height:13px;
+  background:var(--amber);border-radius:50%;box-shadow:0 0 5px rgba(255,184,0,0.6);
+}
+
+/* ── panels ── */
+.panel{
+  background:var(--surface);border:1px solid var(--border);
+  padding:10px 13px;display:flex;flex-direction:column;gap:8px;
+}
+.ptitle{
+  font-size:0.49rem;color:var(--dim);letter-spacing:0.2em;text-transform:uppercase;
+  border-bottom:1px solid var(--border);padding-bottom:5px;
+}
+.crow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+
+/* source buttons */
+.sbtn{
+  font-family:'Orbitron',monospace;font-size:0.56rem;font-weight:700;
+  letter-spacing:0.1em;padding:8px 13px;border:1px solid;background:transparent;
+  cursor:pointer;text-transform:uppercase;transition:all 0.15s;white-space:nowrap;
+}
+#bMic{border-color:var(--cyan);color:var(--cyan);}
+#bMic:hover,#bMic.on{background:rgba(0,229,255,0.1);box-shadow:0 0 10px rgba(0,229,255,0.3);}
+#bFile{border-color:var(--green);color:var(--green);}
+#bFile:hover{background:rgba(0,255,136,0.1);box-shadow:0 0 10px rgba(0,255,136,0.3);}
+#bClear{border-color:var(--dim);color:var(--dim);}
+#bClear:hover{border-color:var(--text);color:var(--text);}
+#fileInput{display:none;}
+
+.vsep{width:1px;height:26px;background:var(--border);flex-shrink:0;}
+
+/* slider+input control */
+.ctrl{display:flex;flex-direction:column;gap:4px;flex:1;min-width:110px;}
+.clbl{font-size:0.49rem;color:var(--dim);letter-spacing:0.1em;text-transform:uppercase;}
+.crow2{display:flex;align-items:center;gap:6px;}
+.crow2 input[type=range]{
+  -webkit-appearance:none;flex:1;height:2px;
+  background:var(--border);outline:none;cursor:pointer;min-width:50px;
+}
+.crow2 input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:11px;height:11px;
+  background:var(--cyan);border-radius:50%;box-shadow:0 0 5px rgba(0,229,255,0.5);
+}
+.crow2 input[type=number],.crow2 input[type=text]{
+  width:58px;flex-shrink:0;background:var(--bg);color:var(--cyan);
+  border:1px solid var(--border);font-family:'Share Tech Mono',monospace;
+  font-size:0.62rem;padding:3px 5px;outline:none;text-align:right;
+  transition:border-color 0.15s;-moz-appearance:textfield;
+}
+.crow2 input[type=number]::-webkit-inner-spin-button,
+.crow2 input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;}
+.crow2 input:focus{border-color:var(--cyan);}
+.crow2 input.bad{border-color:var(--red);color:var(--red);}
+.crow2 input[readonly]{opacity:0.6;cursor:default;}
+.cunit{font-size:0.5rem;color:var(--dim);white-space:nowrap;flex-shrink:0;}
+
+select.csel{
+  background:var(--bg);color:var(--cyan);
+  border:1px solid var(--border);font-family:'Share Tech Mono',monospace;
+  font-size:0.62rem;padding:4px 6px;outline:none;cursor:pointer;
+}
+
+.tog-pair{display:flex;gap:4px;}
+.tog{
+  font-family:'Orbitron',monospace;font-size:0.5rem;font-weight:700;
+  letter-spacing:0.08em;padding:4px 8px;
+  border:1px solid var(--dim);color:var(--dim);
+  background:transparent;cursor:pointer;transition:all 0.15s;
+}
+.tog.on{border-color:var(--cyan);color:var(--cyan);}
+
+/* colormaps */
+.cmap-btn{
+  width:26px;height:13px;border:1px solid var(--border);
+  cursor:pointer;padding:0;flex-shrink:0;transition:border-color 0.15s;
+}
+.cmap-btn.on{border-color:var(--cyan);box-shadow:0 0 5px rgba(0,229,255,0.5);}
+
+/* stats */
+.stats{
+  display:flex;gap:18px;flex-wrap:wrap;
+  padding:7px 0;border-top:1px solid var(--border);
+}
+.stat{display:flex;flex-direction:column;gap:1px;}
+.slbl{font-size:0.48rem;color:var(--dim);letter-spacing:0.1em;text-transform:uppercase;}
+.sval{font-family:'Orbitron',monospace;font-size:0.62rem;color:var(--cyan);}
+
+/* loading */
+#loadWrap{
+  display:none;position:absolute;inset:0;background:rgba(2,4,8,0.88);
+  align-items:center;justify-content:center;flex-direction:column;gap:8px;z-index:10;
+}
+#loadWrap.show{display:flex;}
+#loadBar{width:60%;height:2px;background:var(--border);}
+#loadFill{height:2px;background:var(--cyan);width:0%;transition:width 0.1s;}
+#loadTxt{font-size:0.58rem;color:var(--cyan);letter-spacing:0.2em;text-transform:uppercase;}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>SPECTRO</h1>
+    <div class="subtitle">SOUND VIZUALIZER</div>
+  </div>
+  <div class="dot" id="dot"></div>
+</header>
+
+<div class="panel-wrap">
+
+  <!-- Spectrogram -->
+  <div class="canvas-row">
+    <div class="yaxis sh" id="yaxis"></div>
+    <div class="cbox sh" id="specBox">
+      <canvas id="specCvs"></canvas>
+      <div id="playhead"></div>
+      <div class="idle-msg" id="idleMsg">
+        <span style="font-size:1.5rem;opacity:0.1">◈</span>
+        <span>Awaiting Signal</span>
+        <span style="font-size:0.48rem;opacity:0.4">USE MIC OR LOAD A FILE</span>
+      </div>
+      <div id="loadWrap">
+        <div id="loadTxt">PROCESSING</div>
+        <div id="loadBar"><div id="loadFill"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="xaxis-row"><div class="xaxis" id="xaxis"></div></div>
+
+  <!-- Waveform -->
+  <div class="canvas-row">
+    <div class="yaxis wh"></div>
+    <div class="cbox wh"><canvas id="waveCvs"></canvas></div>
+  </div>
+
+  <!-- Transport -->
+  <div class="transport dim" id="transport">
+    <div class="tbtns">
+      <button class="tbtn" id="tSkipBack">⏮</button>
+      <button class="tbtn" id="tPlayPause">▶</button>
+      <button class="tbtn" id="tSkipFwd">⏭</button>
+    </div>
+    <div class="tdisplay" id="tDisplay">—</div>
+    <div class="scrub-wrap">
+      <div class="scrub-lbl" id="scrubLbl">Position</div>
+      <input type="range" id="scrub" min="0" max="1000" value="0">
+    </div>
+  </div>
+
+  <!-- Source & Analysis -->
+  <div class="panel">
+    <div class="ptitle">Source &amp; Analysis</div>
+    <div class="crow">
+      <button class="sbtn" id="bMic">◉ MIC</button>
+      <label class="sbtn" id="bFile" for="fileInput">⊕ FILE</label>
+      <input type="file" id="fileInput" accept="audio/*">
+      <button class="sbtn" id="bClear">✕ CLEAR</button>
+      <div class="vsep"></div>
+
+      <div class="ctrl" style="max-width:170px;">
+        <div class="clbl">FFT Size</div>
+        <div class="crow2">
+          <input type="range" id="fftSlider" min="0" max="4" step="1" value="2">
+          <input type="text"  id="fftBox" value="2048">
+        </div>
+      </div>
+
+      <div class="ctrl" style="max-width:80px;flex:none;">
+        <div class="clbl">FFT Bins</div>
+        <div class="crow2">
+          <input type="text" id="binsBox" value="1024" readonly>
+        </div>
+      </div>
+
+      <div class="ctrl" style="max-width:165px;">
+        <div class="clbl">Smoothing</div>
+        <div class="crow2">
+          <input type="range" id="smoothSlider" min="0" max="0.97" step="0.01" value="0.75">
+          <input type="number" id="smoothBox" value="0.75" min="0" max="0.97" step="0.01">
+        </div>
+      </div>
+
+      <div class="ctrl" style="max-width:165px;">
+        <div class="clbl">Sensitivity</div>
+        <div class="crow2">
+          <input type="range" id="gainSlider" min="0.2" max="5" step="0.1" value="1.0">
+          <input type="number" id="gainBox"   value="1.0" min="0.2" max="5" step="0.1">
+          <span class="cunit">×</span>
+        </div>
+      </div>
+
+      <div class="vsep"></div>
+
+      <div class="ctrl" style="flex:none;">
+        <div class="clbl">Sample Rate</div>
+        <div class="crow2">
+          <select class="csel" id="srSelect">
+            <option value="8000">8,000 Hz</option>
+            <option value="16000">16,000 Hz</option>
+            <option value="22050">22,050 Hz</option>
+            <option value="44100" selected>44,100 Hz</option>
+            <option value="48000">48,000 Hz</option>
+            <option value="96000">96,000 Hz</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="vsep"></div>
+
+      <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;">
+        <span style="font-size:0.49rem;color:var(--dim);letter-spacing:0.1em;text-transform:uppercase;">Map</span>
+        <canvas class="cmap-btn on" id="cm0" width="26" height="13"></canvas>
+        <canvas class="cmap-btn"    id="cm1" width="26" height="13"></canvas>
+        <canvas class="cmap-btn"    id="cm2" width="26" height="13"></canvas>
+        <canvas class="cmap-btn"    id="cm3" width="26" height="13"></canvas>
+        <canvas class="cmap-btn"    id="cm4" width="26" height="13"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Axis Limits -->
+  <div class="panel">
+    <div class="ptitle">Axis Limits</div>
+    <div class="crow">
+
+      <div class="ctrl">
+        <div class="clbl">Freq Min</div>
+        <div class="crow2">
+          <input type="range"  id="yminSlider" min="1" max="19999" step="1" value="20">
+          <input type="number" id="yminBox"   value="20" min="1" max="19999" step="1">
+          <span class="cunit">Hz</span>
+        </div>
+      </div>
+
+      <div class="ctrl">
+        <div class="clbl">Freq Max</div>
+        <div class="crow2">
+          <input type="range"  id="ymaxSlider" min="2" max="100000" step="1" value="20000">
+          <input type="number" id="ymaxBox"   value="20000" min="2" max="100000" step="1">
+          <span class="cunit">Hz</span>
+        </div>
+      </div>
+
+      <div class="vsep"></div>
+
+      <div class="ctrl">
+        <div class="clbl">Time Window</div>
+        <div class="crow2">
+          <input type="range"  id="xwinSlider" min="1" max="120" step="1" value="10">
+          <input type="number" id="xwinBox"   value="10" min="1" max="120" step="1">
+          <span class="cunit">s</span>
+        </div>
+      </div>
+
+      <div class="ctrl">
+        <div class="clbl">Scroll Speed</div>
+        <div class="crow2">
+          <input type="range"  id="speedSlider" min="0.1" max="5" step="0.1" value="1.0">
+          <input type="number" id="speedBox"   value="1.0" min="0.1" max="5" step="0.1">
+          <span class="cunit">×</span>
+        </div>
+      </div>
+
+      <div class="vsep"></div>
+
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        <div class="clbl">Freq Scale</div>
+        <div class="tog-pair">
+          <button class="tog on" id="togLin">LIN</button>
+          <button class="tog"    id="togLog">LOG</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Stats bar -->
+  <div class="stats">
+    <div class="stat"><span class="slbl">Peak Freq</span><span class="sval" id="sPeak">—</span></div>
+    <div class="stat"><span class="slbl">Peak Amp</span><span class="sval"  id="sAmp">—</span></div>
+    <div class="stat"><span class="slbl">RMS</span><span class="sval"        id="sRms">—</span></div>
+    <div class="stat"><span class="slbl">Y Range</span><span class="sval"   id="sYRange">20–20k Hz</span></div>
+    <div class="stat"><span class="slbl">Mode</span><span class="sval"       id="sMode">IDLE</span></div>
+  </div>
+
+</div><!-- /panel-wrap -->
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  SPECTRO — clean rewrite
+// ═══════════════════════════════════════════════════════════
+
+// ── Colormaps ──────────────────────────────────────────────
+const CMs = [
+  t=>{const r=Math.min(255,t<0.5?t*360:180+(t-0.5)*150),g=Math.min(255,t<0.3?0:(t-0.3)/0.7*200),b=Math.min(255,t<0.2?t*500:t>0.7?(t-0.7)*660:100-(t-0.2)*133);return[r,g,b];},
+  t=>[0,Math.min(255,t*230+10),Math.min(255,t*255)],
+  t=>{const r=Math.min(255,t>0.7?(t-0.7)*850:0),g=Math.min(255,t<0.5?t*280:140+(t-0.5)*230),b=Math.min(255,t<0.5?130-t*20:120-(t-0.5)*240);return[r,g,b];},
+  t=>[Math.min(255,t*306),Math.min(255,t*180),Math.min(255,t>0.8?(t-0.8)*1275:0)],
+  t=>[Math.min(255,t>0.7?(t-0.7)*600:0),Math.min(255,t*200),Math.min(255,80+t*175)],
+];
+let activeCM = 0;
+
+// Draw colormap preview swatches
+for (let i = 0; i < CMs.length; i++) {
+  const el = document.getElementById('cm' + i);
+  const cx = el.getContext('2d');
+  for (let x = 0; x < 26; x++) {
+    const [r,g,b] = CMs[i](x/25);
+    cx.fillStyle = `rgb(${r|0},${g|0},${b|0})`;
+    cx.fillRect(x,0,1,13);
+  }
+  el.addEventListener('click', () => {
+    document.querySelectorAll('.cmap-btn').forEach(e => e.classList.remove('on'));
+    el.classList.add('on');
+    activeCM = i;
+    if (mode === 'file' && fileFull) drawFileViewport();
+  });
+}
+
+// ── Constants & state ──────────────────────────────────────
+const FFT_SIZES = [512,1024,2048,4096,8192];
+const STEP = 2;           // pixels per spectrogram column
+const MIC_MAX_SECS = 120; // 2 min history
+
+let mode      = 'idle';   // idle | mic | file
+let freqMin   = 20;
+let freqMax   = 20000;
+let timeWin   = 10;
+let scrollSpd = 1.0;
+let logScale  = false;
+
+// Audio
+let actx      = null;
+let analyser  = null;
+let micStream = null;
+
+// Animation
+let rafId     = null;
+let frameN    = 0;
+let colAccum  = 0;
+let lastT     = null;
+
+// Mic history
+let micCols   = [];   // [{img:ImageData, t:number}]
+let micPCM    = [];   // [Float32Array]
+let micSR     = 44100;
+let micLive   = true;
+let micPlayIdx = 0;
+let micPlaying = false;
+let micPlayLastT = null;
+
+// File playback
+let fileABuf  = null;   // AudioBuffer
+let fileFull  = null;   // offscreen canvas (full spectrogram)
+let fileDur   = 0;
+let fileView  = 0;      // left-edge seconds
+let filePlaying = false;
+let fileNode  = null;
+let fileSyncT = 0;      // audioCtx.currentTime when play started
+let fileSyncOff = 0;    // file offset when play started
+
+// Canvas elements
+const specCvs = document.getElementById('specCvs');
+const waveCvs = document.getElementById('waveCvs');
+const specCtx = specCvs.getContext('2d');
+const waveCtx = waveCvs.getContext('2d');
+const liveBuf = document.createElement('canvas'); // off-screen scroll buffer for mic
+
+function resize() {
+  const w = document.getElementById('specBox').clientWidth;
+  specCvs.width  = w; specCvs.height  = 260;
+  waveCvs.width  = w; waveCvs.height  = 60;
+  liveBuf.width  = w; liveBuf.height  = 260;
+}
+window.addEventListener('resize', () => {
+  resize();
+  drawYAxis();
+  drawXAxis();
+  if (mode === 'file' && fileFull) drawFileViewport();
+});
+
+// ── Slider ↔ Input sync ────────────────────────────────────
+function linkCtrl(sliderId, inputId, {min, max, dec=0, onChange}) {
+  const sl  = document.getElementById(sliderId);
+  const inp = document.getElementById(inputId);
+  const fmt = v => dec > 0 ? v.toFixed(dec) : String(Math.round(v));
+  const clamp = v => Math.min(max, Math.max(min, v));
+
+  sl.addEventListener('input', () => {
+    const v = parseFloat(sl.value);
+    inp.value = fmt(v);
+    inp.classList.remove('bad');
+    onChange(v);
+  });
+
+  function commit() {
+    const v = parseFloat(inp.value);
+    if (isNaN(v) || v < min || v > max) { inp.classList.add('bad'); return; }
+    inp.classList.remove('bad');
+    const cv = clamp(v);
+    inp.value = fmt(cv);
+    sl.value  = cv;
+    onChange(cv);
+  }
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') { commit(); inp.blur(); }});
+  inp.addEventListener('blur', commit);
+}
+
+// FFT size (discrete)
+(function() {
+  const sl = document.getElementById('fftSlider');
+  const bx = document.getElementById('fftBox');
+  const bb = document.getElementById('binsBox');
+
+  function apply(v) {
+    if (analyser) analyser.fftSize = v;
+    bb.value = v / 2;
+  }
+  sl.addEventListener('input', () => {
+    const v = FFT_SIZES[+sl.value];
+    bx.value = v;
+    bx.classList.remove('bad');
+    apply(v);
+  });
+  function commit() {
+    const v = parseInt(bx.value);
+    if (!FFT_SIZES.includes(v)) { bx.classList.add('bad'); return; }
+    bx.classList.remove('bad');
+    sl.value = FFT_SIZES.indexOf(v);
+    apply(v);
+  }
+  bx.addEventListener('keydown', e => { if (e.key === 'Enter') { commit(); bx.blur(); }});
+  bx.addEventListener('blur', commit);
+  bx.addEventListener('input', () => {
+    bx.classList[FFT_SIZES.includes(parseInt(bx.value)) ? 'remove' : 'add']('bad');
+  });
+})();
+
+linkCtrl('smoothSlider','smoothBox',{min:0,max:0.97,dec:2,onChange:v=>{if(analyser)analyser.smoothingTimeConstant=v;}});
+linkCtrl('gainSlider',  'gainBox',  {min:0.2,max:5,dec:1,onChange:()=>{}});
+
+linkCtrl('yminSlider','yminBox',{min:1,max:19999,dec:0,onChange:v=>{
+  if(v>=freqMax){freqMax=v+1;document.getElementById('ymaxSlider').value=freqMax;document.getElementById('ymaxBox').value=freqMax;}
+  freqMin=v; drawYAxis(); updateYRangeStat();
+  if(mode==='file'&&fileFull) drawFileViewport();
+}});
+linkCtrl('ymaxSlider','ymaxBox',{min:2,max:100000,dec:0,onChange:v=>{
+  if(v<=freqMin){freqMin=v-1;document.getElementById('yminSlider').value=freqMin;document.getElementById('yminBox').value=freqMin;}
+  freqMax=v; drawYAxis(); updateYRangeStat();
+  if(mode==='file'&&fileFull) drawFileViewport();
+}});
+linkCtrl('xwinSlider','xwinBox',{min:1,max:120,dec:0,onChange:v=>{
+  timeWin=v; drawXAxis();
+  if(mode==='file'&&fileFull) drawFileViewport();
+}});
+linkCtrl('speedSlider','speedBox',{min:0.1,max:5,dec:1,onChange:v=>{scrollSpd=v;}});
+
+// Log/Lin
+document.getElementById('togLin').addEventListener('click',()=>{
+  logScale=false;
+  document.getElementById('togLin').classList.add('on');
+  document.getElementById('togLog').classList.remove('on');
+  drawYAxis();
+  if(mode==='file'&&fileFull) drawFileViewport();
+});
+document.getElementById('togLog').addEventListener('click',()=>{
+  logScale=true;
+  document.getElementById('togLog').classList.add('on');
+  document.getElementById('togLin').classList.remove('on');
+  drawYAxis();
+  if(mode==='file'&&fileFull) drawFileViewport();
+});
+
+// Sample rate
+document.getElementById('srSelect').addEventListener('change', function() {
+  if (mode === 'mic') restartMic(parseInt(this.value));
+});
+
+// ── Audio context ──────────────────────────────────────────
+async function startAudioCtx(sr) {
+  if (actx) { try { await actx.close(); } catch(e) {} actx = null; }
+  actx = new (window.AudioContext || window.webkitAudioContext)(sr ? {sampleRate:sr} : {});
+  analyser = actx.createAnalyser();
+  analyser.fftSize = FFT_SIZES[parseInt(document.getElementById('fftSlider').value)];
+  analyser.smoothingTimeConstant = parseFloat(document.getElementById('smoothBox').value);
+  // Don't connect analyser to destination — mic would feedback to speakers.
+  // File playback node connects to both analyser and destination separately.
+  document.getElementById('binsBox').value = analyser.frequencyBinCount;
+  // Clamp freq max to nyquist
+  const nyq = actx.sampleRate / 2;
+  if (freqMax > nyq) {
+    freqMax = nyq;
+    document.getElementById('ymaxSlider').value = nyq;
+    document.getElementById('ymaxBox').value    = nyq;
+  }
+  document.getElementById('ymaxSlider').max = Math.min(nyq, 100000);
+  document.getElementById('ymaxBox').setAttribute('max', Math.min(nyq, 100000));
+  drawYAxis();
+  updateYRangeStat();
+}
+
+// ── MIC ────────────────────────────────────────────────────
+document.getElementById('bMic').addEventListener('click', async () => {
+  if (mode === 'mic') { stopMicSaveHistory(); return; }
+  hardStop();
+  try {
+    await startAudioCtx(parseInt(document.getElementById('srSelect').value));
+    micStream = await navigator.mediaDevices.getUserMedia({audio:true,video:false});
+    micSR     = actx.sampleRate;
+    micCols   = [];
+    micPCM    = [];
+
+    const src = actx.createMediaStreamSource(micStream);
+    src.connect(analyser);
+
+    // Silent PCM capture
+    const cap  = actx.createScriptProcessor(4096,1,1);
+    const mute = actx.createGain();
+    mute.gain.value = 0;
+    cap.onaudioprocess = e => {
+      if (mode !== 'mic') return;
+      micPCM.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+      // Trim to max
+      const maxS = MIC_MAX_SECS * micSR;
+      let tot = micPCM.reduce((a,c)=>a+c.length,0);
+      while (tot > maxS && micPCM.length > 0) { tot -= micPCM[0].length; micPCM.shift(); }
+    };
+    src.connect(cap);
+    cap.connect(mute);
+    mute.connect(actx.destination);
+
+    mode     = 'mic';
+    micLive  = true;
+    micPlayIdx = 0;
+    micPlaying = false;
+    liveBuf.getContext('2d').clearRect(0,0,liveBuf.width,liveBuf.height);
+
+    document.getElementById('bMic').textContent = '◼ STOP';
+    document.getElementById('bMic').classList.add('on');
+    document.getElementById('dot').classList.add('on');
+    document.getElementById('idleMsg').style.display = 'none';
+    document.getElementById('sMode').textContent = 'MIC';
+    document.getElementById('transport').classList.remove('dim');
+    document.getElementById('scrubLbl').textContent = 'History';
+    document.getElementById('scrub').value = 1000;
+    drawXAxis();
+
+    frameN=0; colAccum=0; lastT=null;
+    loop();
+  } catch(err) {
+    alert('Microphone error: ' + err.message);
+  }
+});
+
+async function stopMicSaveHistory() {
+  // Stop hardware
+  if (rafId) { cancelAnimationFrame(rafId); rafId=null; }
+  if (micStream) { micStream.getTracks().forEach(t=>t.stop()); micStream=null; }
+
+  if (!micCols.length) { hardStop(); return; }
+
+  setLoad(true, 10);
+  await tick();
+
+  // Stitch columns into a full canvas
+  const cols  = micCols.length;
+  const H     = 260;
+  fileFull    = document.createElement('canvas');
+  fileFull.width  = cols * STEP;
+  fileFull.height = H;
+  const fc    = fileFull.getContext('2d');
+  for (let i = 0; i < cols; i++) fc.putImageData(micCols[i].img, i*STEP, 0);
+
+  setLoad(true, 50);
+  await tick();
+
+  // Build AudioBuffer from PCM
+  const totalS = micPCM.reduce((a,c)=>a+c.length,0);
+  fileABuf = actx.createBuffer(1, totalS, micSR);
+  const ch  = fileABuf.getChannelData(0);
+  let off   = 0;
+  for (const c of micPCM) { ch.set(c, off); off += c.length; }
+  fileDur = totalS / micSR;
+
+  setLoad(true, 90);
+  await tick();
+
+  // Switch to file mode
+  mode = 'file';
+  micCols=[]; micPCM=[];
+  fileView    = Math.max(0, fileDur - timeWin);
+  filePlaying = false;
+
+  document.getElementById('bMic').textContent = '◉ MIC';
+  document.getElementById('bMic').classList.remove('on');
+  document.getElementById('dot').classList.remove('on');
+  document.getElementById('idleMsg').style.display = 'none';
+  document.getElementById('sMode').textContent = 'MIC REC';
+
+  setLoad(false, 0);
+  setupFileTransport();
+  drawFileViewport();
+  drawXAxis();
+  updatePlayhead();
+
+  frameN=0; lastT=null;
+  loop();
+}
+
+async function restartMic(sr) {
+  if (mode !== 'mic') return;
+  if (rafId) { cancelAnimationFrame(rafId); rafId=null; }
+  if (micStream) { micStream.getTracks().forEach(t=>t.stop()); micStream=null; }
+  await startAudioCtx(sr);
+  micSR = actx.sampleRate;
+  micStream = await navigator.mediaDevices.getUserMedia({audio:true,video:false});
+  const src = actx.createMediaStreamSource(micStream);
+  src.connect(analyser);
+  frameN=0; colAccum=0; lastT=null;
+  loop();
+}
+
+// ── FILE ───────────────────────────────────────────────────
+document.getElementById('fileInput').addEventListener('change', async function() {
+  const file = this.files[0];
+  if (!file) return;
+  this.value = '';
+  hardStop();
+  setLoad(true, 0);
+  document.getElementById('idleMsg').style.display = 'none';
+
+  try {
+    await startAudioCtx(parseInt(document.getElementById('srSelect').value));
+    setLoad(true, 15);
+    const ab  = await file.arrayBuffer();
+    setLoad(true, 30);
+    fileABuf  = await actx.decodeAudioData(ab);
+    fileDur   = fileABuf.duration;
+    setLoad(true, 45);
+    await buildFileFull();
+    setLoad(false, 0);
+
+    mode        = 'file';
+    fileView    = 0;
+    filePlaying = false;
+
+    document.getElementById('dot').classList.add('on');
+    document.getElementById('idleMsg').style.display = 'none';
+    document.getElementById('sMode').textContent = file.name.slice(0,16);
+
+    setupFileTransport();
+    drawFileViewport();
+    drawXAxis();
+    updatePlayhead();
+
+    frameN=0; lastT=null;
+    loop();
+  } catch(err) {
+    setLoad(false,0);
+    document.getElementById('idleMsg').style.display = '';
+    alert('Could not load file: ' + err.message);
+  }
+});
+
+// Pre-render entire file to offscreen canvas via manual FFT
+async function buildFileFull() {
+  const sr       = actx.sampleRate;
+  const fftSize  = FFT_SIZES[parseInt(document.getElementById('fftSlider').value)];
+  const hopSize  = Math.round(fftSize / 4);
+  const data     = fileABuf.getChannelData(0);
+  const total    = data.length;
+  const nHops    = Math.floor((total - fftSize) / hopSize) + 1;
+  const H        = 260;
+  const binCount = fftSize / 2;
+  const nyq      = sr / 2;
+  const gain     = parseFloat(document.getElementById('gainBox').value) || 1;
+
+  fileFull        = document.createElement('canvas');
+  fileFull.width  = nHops;
+  fileFull.height = H;
+  const fc        = fileFull.getContext('2d');
+  const imgData   = fc.createImageData(nHops, H);
+  const d         = imgData.data;
+
+  // Hann window
+  const win = new Float32Array(fftSize);
+  for (let i=0;i<fftSize;i++) win[i] = 0.5*(1-Math.cos(2*Math.PI*i/(fftSize-1)));
+
+  // Radix-2 FFT
+  function doFFT(re, im) {
+    const n = re.length;
+    for (let i=1,j=0; i<n; i++) {
+      let bit = n>>1;
+      for (; j&bit; bit>>=1) j^=bit;
+      j^=bit;
+      if (i<j) { let t=re[i];re[i]=re[j];re[j]=t; t=im[i];im[i]=im[j];im[j]=t; }
+    }
+    for (let len=2;len<=n;len<<=1) {
+      const ang = -2*Math.PI/len;
+      const wR=Math.cos(ang), wI=Math.sin(ang);
+      for (let i=0;i<n;i+=len) {
+        let uR=1,uI=0;
+        for (let j=0;j<len/2;j++) {
+          const vR=re[i+j+len/2]*uR-im[i+j+len/2]*uI;
+          const vI=re[i+j+len/2]*uI+im[i+j+len/2]*uR;
+          re[i+j+len/2]=re[i+j]-vR; im[i+j+len/2]=im[i+j]-vI;
+          re[i+j]+=vR; im[i+j]+=vI;
+          const nR=uR*wR-uI*wI; uI=uR*wI+uI*wR; uR=nR;
+        }
+      }
+    }
+  }
+
+  const re = new Float32Array(fftSize);
+  const im = new Float32Array(fftSize);
+
+  for (let hop=0; hop<nHops; hop++) {
+    const start = hop * hopSize;
+    re.fill(0); im.fill(0);
+    for (let i=0;i<fftSize;i++) re[i] = (start+i<total?data[start+i]:0)*win[i];
+    doFFT(re,im);
+
+    for (let y=0;y<H;y++) {
+      const normY = 1 - y/H;
+      let freq;
+      if (logScale) {
+        const lMin=Math.log10(Math.max(1,freqMin)), lMax=Math.log10(freqMax);
+        freq = Math.pow(10, lMin + normY*(lMax-lMin));
+      } else {
+        freq = freqMin + normY*(freqMax-freqMin);
+      }
+      const bin = Math.max(0, Math.min(binCount-1, Math.round((freq/nyq)*binCount)));
+      const mag = Math.sqrt(re[bin]*re[bin]+im[bin]*im[bin])/fftSize;
+      const db  = 20*Math.log10(mag+1e-9);
+      const norm= Math.min(1,Math.max(0,(db+90)/90*gain));
+      const [r,g,b] = CMs[activeCM](norm);
+      const idx = (y*nHops+hop)*4;
+      d[idx]=r|0; d[idx+1]=g|0; d[idx+2]=b|0; d[idx+3]=255;
+    }
+
+    if (hop % 300 === 0) {
+      setLoad(true, 45 + Math.round((hop/nHops)*50));
+      await tick();
+    }
+  }
+  fc.putImageData(imgData,0,0);
+}
+
+function drawFileViewport() {
+  if (!fileFull) return;
+  const W=specCvs.width, H=260;
+  const sr      = actx ? actx.sampleRate : 44100;
+  const fftSize = FFT_SIZES[parseInt(document.getElementById('fftSlider').value)];
+  const hop     = Math.round(fftSize/4);
+  const cps     = sr/hop;   // columns per second
+  const sx      = Math.round(fileView*cps);
+  const sw      = Math.round(timeWin*cps);
+  specCtx.fillStyle='#050d14';
+  specCtx.fillRect(0,0,W,H);
+  if (sw>0) specCtx.drawImage(fileFull, sx,0,sw,H, 0,0,W,H);
+}
+
+// ── File transport ─────────────────────────────────────────
+function setupFileTransport() {
+  document.getElementById('transport').classList.remove('dim');
+  document.getElementById('scrubLbl').textContent = 'Seek Position';
+  document.getElementById('scrub').value = 0;
+  updateTimeDsp();
+
+  document.getElementById('tSkipBack').onclick = () => {
+    stopFileNode();
+    fileView=0;
+    document.getElementById('scrub').value=0;
+    drawFileViewport(); drawXAxis(); updatePlayhead(); updateTimeDsp();
+  };
+  document.getElementById('tPlayPause').onclick = () => {
+    if (filePlaying) stopFileNode();
+    else startFileNode(fileView);
+  };
+  document.getElementById('tSkipFwd').onclick = () => {
+    stopFileNode();
+    fileView = Math.max(0, fileDur-timeWin);
+    document.getElementById('scrub').value=1000;
+    drawFileViewport(); drawXAxis(); updatePlayhead(); updateTimeDsp();
+  };
+  document.getElementById('scrub').oninput = () => {
+    const frac = document.getElementById('scrub').value/1000;
+    fileView = frac * Math.max(0, fileDur-timeWin);
+    if (filePlaying) { stopFileNode(); startFileNode(fileView); }
+    drawFileViewport(); drawXAxis(); updatePlayhead(); updateTimeDsp();
+  };
+}
+
+function startFileNode(fromSec) {
+  stopFileNode();
+  fileNode = actx.createBufferSource();
+  fileNode.buffer = fileABuf;
+  fileNode.connect(analyser);
+  fileNode.connect(actx.destination);
+  const at = Math.min(fromSec, fileDur-0.01);
+  fileNode.start(0, at);
+  fileSyncT   = actx.currentTime;
+  fileSyncOff = at;
+  filePlaying = true;
+  setPlayPauseIcon(true);
+  fileNode.onended = () => { filePlaying=false; setPlayPauseIcon(false); };
+}
+
+function stopFileNode() {
+  if (fileNode) { try{fileNode.stop();fileNode.disconnect();}catch(e){} fileNode=null; }
+  filePlaying = false;
+  setPlayPauseIcon(false);
+}
+
+function filePos() {
+  if (!filePlaying || !actx) return fileView;
+  return fileSyncOff + (actx.currentTime - fileSyncT);
+}
+
+function updatePlayhead() {
+  const ph = document.getElementById('playhead');
+  if (mode !== 'file') { ph.style.display='none'; return; }
+  ph.style.display = 'block';
+  const frac = (filePos() - fileView) / timeWin;
+  ph.style.left = (Math.max(0,Math.min(1,frac))*100)+'%';
+}
+
+function updateTimeDsp() {
+  const fmt = s => { s=Math.max(0,s); const m=Math.floor(s/60),ss=Math.floor(s%60); return`${m}:${ss<10?'0':''}${ss}`; };
+  if (mode === 'file') {
+    document.getElementById('tDisplay').textContent = fmt(filePos())+' / '+fmt(fileDur);
+  } else if (mode === 'mic') {
+    if (!micCols.length) { document.getElementById('tDisplay').textContent='—'; return; }
+    const first=micCols[0].t, last=micCols[micCols.length-1].t;
+    const cur = micLive ? last : (micCols[Math.min(micPlayIdx,micCols.length-1)]||{t:last}).t;
+    document.getElementById('tDisplay').textContent = fmt(cur-first)+' / '+fmt(last-first);
+  }
+}
+
+// ── Mic transport ──────────────────────────────────────────
+function setupMicTransportBtns() {
+  document.getElementById('tSkipBack').onclick = () => {
+    micLive=false; micPlaying=false; micPlayIdx=0;
+    document.getElementById('scrub').value=0;
+    drawMicAtIdx(0); updateTimeDsp(); drawXAxis();
+  };
+  document.getElementById('tPlayPause').onclick = () => {
+    if (micLive) {
+      // Freeze at live
+      micLive=false; micPlaying=false;
+      micPlayIdx = Math.max(0,micCols.length-1);
+      setPlayPauseIcon(false);
+    } else if (micPlaying) {
+      micPlaying=false; micPlayLastT=null;
+      setPlayPauseIcon(false);
+    } else {
+      micPlaying=true; micPlayLastT=null;
+      micPlayIdx = Math.round(document.getElementById('scrub').value/1000*Math.max(1,micCols.length-1));
+      setPlayPauseIcon(true);
+    }
+  };
+  document.getElementById('tSkipFwd').onclick = () => {
+    micLive=true; micPlaying=false; micPlayLastT=null;
+    document.getElementById('scrub').value=1000;
+    setPlayPauseIcon(false);
+    drawXAxis();
+  };
+  document.getElementById('scrub').oninput = () => {
+    const frac = document.getElementById('scrub').value/1000;
+    micLive = (frac >= 0.999);
+    micPlaying=false; micPlayLastT=null;
+    if (!micLive) {
+      micPlayIdx = Math.round(frac*Math.max(1,micCols.length-1));
+      drawMicAtIdx(micPlayIdx);
+      updateTimeDsp(); drawXAxis();
+    }
+  };
+}
+
+function setPlayPauseIcon(playing) {
+  const btn = document.getElementById('tPlayPause');
+  if (btn) btn.textContent = playing ? '⏸' : '▶';
+}
+
+// ── Clear ──────────────────────────────────────────────────
+document.getElementById('bClear').addEventListener('click', () => {
+  specCtx.clearRect(0,0,specCvs.width,specCvs.height);
+  waveCtx.clearRect(0,0,waveCvs.width,waveCvs.height);
+  liveBuf.getContext('2d').clearRect(0,0,liveBuf.width,liveBuf.height);
+  micCols=[]; micPCM=[];
+  if (mode==='file') { fileFull=null; fileView=0; }
+});
+
+// ── Full stop (resets everything) ──────────────────────────
+function hardStop() {
+  if (rafId) { cancelAnimationFrame(rafId); rafId=null; }
+  if (micStream) { micStream.getTracks().forEach(t=>t.stop()); micStream=null; }
+  stopFileNode();
+  if (actx) { try{actx.close();}catch(e){} actx=null; analyser=null; }
+
+  mode='idle'; filePlaying=false; fileABuf=null; fileFull=null; fileNode=null;
+  micCols=[]; micPCM=[]; micLive=true; micPlaying=false; micPlayIdx=0; micPlayLastT=null;
+
+  document.getElementById('bMic').textContent='◉ MIC';
+  document.getElementById('bMic').classList.remove('on');
+  document.getElementById('dot').classList.remove('on');
+  document.getElementById('idleMsg').style.display='';
+  document.getElementById('transport').classList.add('dim');
+  document.getElementById('sMode').textContent='IDLE';
+  setPlayPauseIcon(false);
+  specCtx.clearRect(0,0,specCvs.width,specCvs.height);
+  waveCtx.clearRect(0,0,waveCvs.width,waveCvs.height);
+  liveBuf.getContext('2d').clearRect(0,0,liveBuf.width,liveBuf.height);
+}
+
+// ── Render loop ────────────────────────────────────────────
+function loop() {
+  rafId = requestAnimationFrame(loop);
+  const now = performance.now()/1000;
+  if (lastT===null) lastT=now;
+  const dt  = now-lastT; lastT=now;
+
+  if (!analyser) return;
+
+  const W=specCvs.width, H=260;
+  const nyq    = actx.sampleRate/2;
+  const bufLen = analyser.frequencyBinCount;
+  const fD     = new Uint8Array(bufLen);
+  const tD     = new Uint8Array(analyser.fftSize);
+  analyser.getByteFrequencyData(fD);
+  analyser.getByteTimeDomainData(tD);
+  const gain = parseFloat(document.getElementById('gainBox').value)||1;
+
+  if (mode === 'mic') {
+    // ── Advance live scroll ──
+    const pps = (W/timeWin)*scrollSpd;
+    colAccum += dt*pps;
+    const bCtx = liveBuf.getContext('2d');
+
+    while (colAccum >= STEP) {
+      colAccum -= STEP;
+      bCtx.drawImage(liveBuf,-STEP,0);
+      const colX = W-STEP;
+      const img  = bCtx.createImageData(STEP,H);
+      const d    = img.data;
+      for (let y=0;y<H;y++) {
+        const bin = freqToBin(y,H,nyq,bufLen);
+        const raw = Math.min(255,fD[bin]*gain);
+        const [r,g,b] = CMs[activeCM](raw/255);
+        for (let sx=0;sx<STEP;sx++){const i=(y*STEP+sx)*4;d[i]=r|0;d[i+1]=g|0;d[i+2]=b|0;d[i+3]=255;}
+      }
+      bCtx.putImageData(img,colX,0);
+      micCols.push({img:bCtx.getImageData(colX,0,STEP,H), t:now});
+      // Trim history
+      while (micCols.length>0 && micCols[0].t < now-MIC_MAX_SECS) micCols.shift();
+    }
+
+    // ── Handle mic playback ──
+    if (micPlaying && micCols.length>0) {
+      if (micPlayLastT===null) micPlayLastT=now;
+      const elapsed = now-micPlayLastT; micPlayLastT=now;
+      micPlayIdx = Math.min(micCols.length-1, micPlayIdx + elapsed*(pps/STEP));
+      if (micPlayIdx >= micCols.length-1) {
+        micPlaying=false; micLive=true;
+        setPlayPauseIcon(false);
+        document.getElementById('scrub').value=1000;
+      } else {
+        document.getElementById('scrub').value = Math.round((micPlayIdx/(micCols.length-1))*1000);
+        drawMicAtIdx(Math.round(micPlayIdx));
+        drawXAxis(); updateTimeDsp();
+      }
+    }
+
+    if (micLive) {
+      specCtx.drawImage(liveBuf,0,0);
+      document.getElementById('scrub').value=1000;
+    } else if (!micPlaying) {
+      drawMicAtIdx(Math.round(micPlayIdx));
+    }
+
+    if (frameN===0) { setupMicTransportBtns(); }
+    if (frameN%6===0) updateTimeDsp();
+
+  } else if (mode === 'file') {
+    if (filePlaying) {
+      const pos = filePos();
+      if (pos >= fileDur) {
+        stopFileNode();
+      } else {
+        const ideal = pos - timeWin*0.5;
+        fileView = Math.max(0, Math.min(fileDur-timeWin, ideal));
+        drawFileViewport();
+        const frac = fileView / Math.max(1,fileDur-timeWin);
+        document.getElementById('scrub').value = Math.round(frac*1000);
+        drawXAxis();
+      }
+      updatePlayhead();
+      updateTimeDsp();
+    } else {
+      updatePlayhead();
+      if (frameN%10===0) updateTimeDsp();
+    }
+  }
+
+  // ── Waveform ──
+  const wH = waveCvs.height;
+  waveCtx.fillStyle='#050d14'; waveCtx.fillRect(0,0,W,wH);
+  waveCtx.strokeStyle='#0a2030'; waveCtx.lineWidth=1;
+  waveCtx.beginPath(); waveCtx.moveTo(0,wH/2); waveCtx.lineTo(W,wH/2); waveCtx.stroke();
+  waveCtx.strokeStyle = mode==='file' ? 'rgba(255,184,0,0.85)' : '#00e5ff';
+  waveCtx.lineWidth=1.5;
+  waveCtx.shadowColor = mode==='file' ? 'rgba(255,184,0,0.35)' : 'rgba(0,229,255,0.35)';
+  waveCtx.shadowBlur=4;
+  waveCtx.beginPath();
+  const sw2 = W/tD.length;
+  for (let i=0;i<tD.length;i++) {
+    const y = ((tD[i]/128-1)*gain*wH*0.38)+wH/2;
+    i===0 ? waveCtx.moveTo(0,y) : waveCtx.lineTo(i*sw2,y);
+  }
+  waveCtx.stroke(); waveCtx.shadowBlur=0;
+
+  // ── Stats ──
+  if (frameN%6===0) {
+    let mx=0,mxB=0;
+    for(let i=0;i<bufLen;i++){if(fD[i]>mx){mx=fD[i];mxB=i;}}
+    const ph=(mxB/bufLen)*nyq;
+    document.getElementById('sPeak').textContent = ph<1000?ph.toFixed(1)+' Hz':(ph/1000).toFixed(2)+' kHz';
+    document.getElementById('sAmp').textContent  = (mx/255*100).toFixed(1)+' %';
+    let s=0; for(let i=0;i<tD.length;i++){const v=tD[i]/128-1;s+=v*v;}
+    document.getElementById('sRms').textContent  = (20*Math.log10(Math.sqrt(s/tD.length)+1e-9)).toFixed(1)+' dB';
+  }
+
+  frameN++;
+}
+
+// ── Helpers ────────────────────────────────────────────────
+function freqToBin(y, H, nyq, bufLen) {
+  const normY = 1-y/H;
+  let freq;
+  if (logScale) {
+    const lMin=Math.log10(Math.max(1,freqMin)), lMax=Math.log10(freqMax);
+    freq = Math.pow(10, lMin+normY*(lMax-lMin));
+  } else {
+    freq = freqMin + normY*(freqMax-freqMin);
+  }
+  return Math.max(0, Math.min(bufLen-1, Math.round((freq/nyq)*bufLen)));
+}
+
+function drawMicAtIdx(idx) {
+  if (!micCols.length) return;
+  const W=specCvs.width, H=260;
+  const col = micCols[Math.min(idx, micCols.length-1)];
+  const viewEnd   = col.t;
+  const viewStart = viewEnd - timeWin;
+  const pps = W/timeWin;
+  specCtx.fillStyle='#050d14';
+  specCtx.fillRect(0,0,W,H);
+  for (let i=0;i<micCols.length;i++) {
+    const c = micCols[i];
+    const x = Math.round((c.t-viewStart)*pps);
+    if (x+STEP<0 || x>W) continue;
+    specCtx.putImageData(c.img, x, 0);
+  }
+}
+
+function drawYAxis() {
+  const el = document.getElementById('yaxis');
+  el.innerHTML='';
+  const ticks = [20,50,100,200,500,1000,2000,5000,10000,20000,48000,96000]
+    .filter(f => f>freqMin && f<freqMax);
+  [freqMin,...ticks,freqMax].forEach(f => {
+    let norm;
+    if (logScale) {
+      const lMin=Math.log10(Math.max(1,freqMin)),lMax=Math.log10(freqMax);
+      norm = (Math.log10(Math.max(1,f))-lMin)/(lMax-lMin);
+    } else {
+      norm = (f-freqMin)/(freqMax-freqMin);
+    }
+    const top = (1-norm)*100;
+    const s   = document.createElement('span');
+    s.textContent = f>=1000 ? (f/1000).toFixed(f%1000===0?0:1)+'k' : f;
+    s.style.cssText = `position:absolute;right:6px;transform:translateY(-50%);top:${top}%;`;
+    el.appendChild(s);
+  });
+}
+
+function drawXAxis() {
+  const el = document.getElementById('xaxis');
+  el.innerHTML='';
+  const steps = Math.min(8, Math.max(2, Math.floor(timeWin/2)));
+  const interval = timeWin/steps;
+
+  if (mode==='file') {
+    for (let i=0;i<=steps;i++) {
+      const t = fileView + i*interval;
+      const m=Math.floor(t/60), s=(t%60).toFixed(1);
+      const sp=document.createElement('span');
+      sp.textContent=`${m}:${parseFloat(s)<10?'0':''}${s}`;
+      el.appendChild(sp);
+    }
+  } else if (mode==='mic' && !micLive && micCols.length>0) {
+    const first=micCols[0].t;
+    const refCol=micCols[Math.min(Math.round(micPlayIdx),micCols.length-1)];
+    const viewEnd=refCol.t, viewStart=viewEnd-timeWin;
+    for (let i=0;i<=steps;i++) {
+      const t=viewStart+i*interval-first;
+      const m=Math.floor(Math.max(0,t)/60),s=Math.floor(Math.max(0,t)%60);
+      const sp=document.createElement('span');
+      sp.textContent=`${m}:${s<10?'0':''}${s}`;
+      el.appendChild(sp);
+    }
+  } else {
+    // Relative, NOW on right
+    for (let i=steps;i>=0;i--) {
+      const t=i*interval;
+      const sp=document.createElement('span');
+      sp.textContent = t===0?'NOW':`-${t%1===0?t:t.toFixed(1)}s`;
+      el.appendChild(sp);
+    }
+  }
+}
+
+function updateYRangeStat() {
+  const lo=freqMin>=1000?(freqMin/1000).toFixed(1)+'k':freqMin;
+  const hi=freqMax>=1000?(freqMax/1000).toFixed(1)+'k':freqMax;
+  document.getElementById('sYRange').textContent=`${lo}–${hi} Hz`;
+}
+
+function setLoad(show, pct) {
+  document.getElementById('loadWrap').classList[show?'add':'remove']('show');
+  if (show) document.getElementById('loadFill').style.width=pct+'%';
+}
+
+function tick() { return new Promise(r=>setTimeout(r,0)); }
+
+// ── Init ───────────────────────────────────────────────────
+resize();
+drawYAxis();
+drawXAxis();
+updateYRangeStat();
+</script>
+</body>
+</html>
